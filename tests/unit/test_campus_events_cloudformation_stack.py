@@ -13,5 +13,18 @@ def test_lambda_created():
 
     template.has_resource_properties(
         "AWS::Lambda::Function",
-        {"Handler": "hello_world.hello_world_handler", "Runtime": "python3.12"},
+        {"Handler": "fetch_new_events.lambda_handler", "Runtime": "python3.12"},
     )
+
+
+def test_lambda_is_private():
+    app = core.App()
+    stack = CampusEventsCloudformationStack(app, "campus-events-cloudformation")
+    template = assertions.Template.from_stack(stack)
+
+    template.resource_count_is("AWS::Lambda::Url", 0)
+    template.resource_count_is("AWS::Lambda::FunctionUrl", 0)
+
+    # Ensure no public Lambda permissions
+    for resource in template.find_resources("AWS::Lambda::Permission").values():
+        assert resource["Properties"]["Principal"] != "*"
