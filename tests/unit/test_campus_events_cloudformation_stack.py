@@ -13,7 +13,7 @@ def test_lambda_created():
 
     template.has_resource_properties(
         "AWS::Lambda::Function",
-        {"Handler": "fetch_new_events.lambda_handler", "Runtime": "python3.12"},
+        {"Handler": "fetch_new_events.lambda_handler", "Runtime": "python3.9"},
     )
 
 
