@@ -2,7 +2,7 @@ class Event:
     def __init__(
         self,
         title: str,
-        host: str | None,
+        host: str,
         start_date: str,
         end_date: str,
         start_time: str,
@@ -15,7 +15,7 @@ class Event:
         categories: list[str],
     ) -> None:
         self.title: str = title
-        self.host: str | None = host
+        self.host: str = host
         self.start_date: str = start_date
         self.end_date: str = end_date
         self.start_time: str = start_time
