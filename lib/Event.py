@@ -7,8 +7,6 @@ class Event:
         end_date: str,
         start_time: str,
         end_time: str,
-        map_latitude: float,
-        map_longitude: float,
         event_description: str,
         location: str,
         link: str,
@@ -20,8 +18,6 @@ class Event:
         self.end_date: str = end_date
         self.start_time: str = start_time
         self.end_time: str = end_time
-        self.map_latitude: float = map_latitude
-        self.map_longitude: float = map_longitude
         self.event_description: str = event_description
         self.location: str = location
         self.link: str = link
@@ -35,8 +31,6 @@ class Event:
             "end_date": self.end_date,
             "start_time": self.start_time,
             "end_time": self.end_time,
-            "map_latitude": self.map_latitude,
-            "map_longitude": self.map_longitude,
             "event_description": self.event_description,
             "location": self.location,
             "external_link": self.link,
