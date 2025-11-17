@@ -1,0 +1,62 @@
+{
+  "title": "UC Rotaract Club International Thanksgiving",
+  "title_detail": {
+    "type": "text/plain",
+    "language": null,
+    "base": "https://campuslink.uc.edu/events.rss",
+    "value": "UC Rotaract Club International Thanksgiving"
+  },
+  "id": "https://campuslink.uc.edu/event/xxx",
+  "guidislink": true,
+  "link": "https://campuslink.uc.edu/event/xxx",
+  "links": [
+    {
+      "rel": "alternate",
+      "type": "text/html",
+      "href": "https://campuslink.uc.edu/event/xxx"
+    },
+    {
+      "length": "1",
+      "type": "image/jpeg",
+      "href": "https://se-images.campuslabs.com/clink/images/xxx.png?preset=med-w",
+      "rel": "enclosure"
+    }
+  ],
+  "summary": "<div>xxx</div>",
+  "summary_detail": {
+    "type": "text/html",
+    "language": null,
+    "base": "https://xxx",
+    "value": "<div>xxx</div>"
+  },
+  "tags": [
+    {
+      "term": "Cultural",
+      "scheme": null,
+      "label": null
+    },
+    {
+      "term": "Cultural Event",
+      "scheme": null,
+      "label": null
+    }
+  ],
+  "published": "Sun, 16 Nov 2025 21:57:51 GMT",
+  "published_parsed": "xxx",
+  "start": "Sun, 16 Nov 2025 22:00:00 GMT",
+  "end": "Mon, 17 Nov 2025 00:00:00 GMT",
+  "location": "TUC xxx Rooms",
+  "status": "confirmed",
+  "authors": [
+    {
+      "name": "UC xxx Club",
+      "email": "xxx"
+    }
+  ],
+  "author": "xxx",
+  "author_detail": {
+    "name": "UC Rotaract Club",
+    "email": "xxx"
+  },
+  "host": "UC Rotaract Club"
+}
