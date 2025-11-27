@@ -17,9 +17,9 @@ class S3CSVStack(Stack):
     csv_bucket: s3.Bucket
 
     def __init__(
-        self, scope: Construct, id: str, env: Environment, config: PipelineConfig, **kwargs
+        self, scope: Construct, id: str, config: PipelineConfig, **kwargs
     ) -> None:
-        super().__init__(scope, id, env=env, **kwargs)
+        super().__init__(scope, id, **kwargs)
 
         self.csv_bucket = s3.Bucket(
             self,
