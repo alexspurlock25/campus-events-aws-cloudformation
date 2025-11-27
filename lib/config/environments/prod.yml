@@ -1,0 +1,8 @@
+# config/environments/prod.yaml
+
+csv_bucket_name: "rss-pipeline-csv"
+
+rss_feed:
+  name: "University of Cincinnati"
+  url: "https://campuslink.uc.edu/events.rss"
+  schedule_expression: "rate(1 day)"
