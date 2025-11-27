@@ -1,16 +1,67 @@
-import json
-import os
-import re
-from datetime import datetime
+'''
+Lambda hanlder to convert rss data to csv
+'''
 
+import os
+import json
+import csv
+import re
+from io import StringIO
+from datetime import datetime, timezone
+from dataclasses import fields, asdict
+from aws_cdk import aws_s3 as s3
+import boto3
 import feedparser
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from Event import Event
-from supabase import Client, create_client
 
 date_pattern = r"(\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{4})"
 time_pattern = r"(\d{2}:\d{2}:\d{2})"
+
+s3_client = boto3.client('s3')
+
+def lambda_handler(event, context):
+    '''
+    Lambda hanlder to convert rss data to csv
+    '''
+
+    rss_url = os.environ["RSS_FEED_URL"]
+    rss_feed_name = os.environ["RSS_FEED_NAME"]
+    bucket_name = os.environ["CSV_BUCKET_NAME"]
+    environment_name = os.environ["ENVIRONMENT_NAME"]
+
+    try:
+        events = parse_rss(url=rss_url)
+        csv_out = events_to_csv(events=events)
+
+        timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+        s3_key = f"{environment_name}/{rss_feed_name}/{timestamp}.csv"
+
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=s3_key,
+            Body=csv_out,
+            ContentType='text/csv'
+        )
+
+        print(f"Successfully uploaded CSV to s3://{bucket_name}/{s3_key}")
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                'message': 'RSS feed processed successfully',
+                's3_location': f"s3://{bucket_name}/{s3_key}",
+                'items_processed': len(events)
+            }),
+        }
+    except Exception as e:
+        print(f"Error processing RSS feed: {str(e)}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': str(e)
+            })
+        }
 
 
 def parse_rss(url: str) -> list[Event]:
@@ -76,41 +127,15 @@ def parse_rss(url: str) -> list[Event]:
     return events
 
 
-def add_entries(supabase: Client, events: list[Event]):
-    unique_events = {event.title: event.to_dict() for event in events}
-    main_list = list(unique_events.values())
-    supabase.table("events").upsert(main_list).execute()
+def events_to_csv(events: list[Event]):
+    output = StringIO()
+    field_names = [f.name for f in fields(Event)]
 
+    writer = csv.DictWriter(output, fieldnames=field_names)
+    writer.writeheader()
 
-def lambda_handler(event, context):
-    try:
-        rss_url = os.environ.get("uc_events_rss_feed")
-        sb_url = os.environ.get("supabase_url")
-        sb_key = os.environ.get("supabase_key")
-        if rss_url is not None and sb_url is not None and sb_key is not None:
-            events = parse_rss(rss_url)
-            supabase = create_client(sb_url, sb_key)
-            add_entries(supabase, events)
-        return {
-            "statusCode": 200,
-            "body": json.dumps(
-                {
-                    "message": "Entries Added!",
-                }
-            ),
-        }
-    except Exception as e:
-        return {"statusCode": 500, "body": repr(e)}
+    for event in events:
+        writer.writerow(asdict(event))
 
+    return output.getvalue()
 
-def main():
-    """
-    This is here only for testing using the terminal. AWS Lambda will call the handler.
-    """
-    env_loaded = load_dotenv(dotenv_path="./.env.local")
-    if env_loaded:
-        lambda_handler(None, None)
-
-
-if __name__ == "__main__":
-    main()

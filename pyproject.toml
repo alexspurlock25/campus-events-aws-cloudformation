@@ -15,7 +15,8 @@ dependencies = [
     "supabase (>=2.24.0,<3.0.0)",
     "feedparser (>=6.0.12,<7.0.0)",
     "python-dotenv (>=1.2.1,<2.0.0)",
-    "pyyaml (>=6.0.3,<7.0.0)"
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "boto3 (>=1.41.5,<2.0.0)"
 ]
 
 [dependency-groups]
