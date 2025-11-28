@@ -35,3 +35,6 @@ testpaths = [
 filterwarnings = [
     "ignore::UserWarning"
 ]
+
+[tool.poetry]
+package-mode = false
