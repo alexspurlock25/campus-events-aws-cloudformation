@@ -1,6 +1,6 @@
 # University of Cincinnati events AWS CDK project
 
-This CDK project is created as a companion to the (unofficial) University of Cincinnati events Android App
+This CDK project is created as a companion to the [(unofficial) University of Cincinnati events Android App](https://github.com/alexspurlock25/campus-events-android)
 
 Simply what this project does:
 1. Grabs all events listed in the RSS feed from UC's events page. (AWS Lambda, EventWatch)
