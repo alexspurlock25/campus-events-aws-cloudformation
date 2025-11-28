@@ -1,0 +1,57 @@
+import os
+
+from aws_cdk import Stack
+from aws_cdk import aws_events as events
+from aws_cdk import aws_events_targets as targets
+from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_s3 as s3
+from aws_cdk.aws_lambda import Code, Function, Runtime
+from constructs import Construct
+
+from lib.config import PipelineConfig
+
+
+class LambdaStack(Stack):
+    """
+    Lambda stack handle the rss to csv handler
+    """
+
+    rss_function: lambda_.Function
+
+    def __init__(
+        self,
+        scope: Construct,
+        id: str,
+        csv_bucket: s3.Bucket,
+        config: PipelineConfig,
+        **kwargs,
+    ) -> None:
+        super().__init__(scope, id, **kwargs)
+
+        lambda_dir = os.path.join("lib", "functions", "rss_to_csv")
+
+        function = Function(
+            scope=self,
+            id=f"RssFunction-{config.rss_feed.name}",
+            runtime=Runtime.PYTHON_3_14,
+            handler="handler.lambda_handler",
+            code=Code.from_docker_build(path=lambda_dir, file="Dockerfile"),
+            environment={
+                "RSS_FEED_URL": config.rss_feed.url,
+                "RSS_FEED_NAME": config.rss_feed.name,
+                "CSV_BUCKET_NAME": csv_bucket.bucket_name,
+                "ENVIRONMENT_NAME": config.environment,
+            },
+        )
+
+        csv_bucket.grant_write(function)
+
+        rule = events.Rule(
+            self,
+            f"RssSchedule={config.rss_feed.name}",
+            schedule=events.Schedule.expression(config.rss_feed.schedule_expression),
+        )
+
+        rule.add_target(targets.LambdaFunction(function))
+
+        self.rss_function = function
