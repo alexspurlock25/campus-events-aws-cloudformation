@@ -1,6 +1,6 @@
 import os
 
-from aws_cdk import Stack
+from aws_cdk import Duration, Stack
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_lambda as lambda_
@@ -42,6 +42,7 @@ class LambdaStack(Stack):
                 "CSV_BUCKET_NAME": csv_bucket.bucket_name,
                 "ENVIRONMENT_NAME": config.environment,
             },
+            timeout=Duration.seconds(30),
         )
 
         csv_bucket.grant_write(function)
