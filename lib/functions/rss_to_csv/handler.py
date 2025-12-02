@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 @dataclass
 class Event:
+    guid: str
     title: str
     host: str
     start_date: str
@@ -30,6 +31,7 @@ class Event:
 
     def to_dict(self):
         return {
+            "guid": self.guid,
             "title": self.title,
             "host": self.host,
             "start_date": self.start_date,
@@ -64,7 +66,7 @@ def lambda_handler(event, context):
         csv_out = events_to_csv(events=events)
 
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        s3_key = f"{environment_name}/{rss_feed_name}/{timestamp}.csv"
+        s3_key = f"{environment_name}/{rss_feed_name}/uc_events_{timestamp}.csv"
 
         s3_client.put_object(
             Bucket=bucket_name, Key=s3_key, Body=csv_out, ContentType="text/csv"
@@ -97,6 +99,7 @@ def parse_rss(url: str) -> list[Event]:
             categories.append(str(tag.term))
 
         title = str(entry["title"]).strip()
+        guid = str(entry["guid"]).strip()
         host = ""
         location = ""
         link = ""
@@ -135,6 +138,7 @@ def parse_rss(url: str) -> list[Event]:
         event_description = re.sub(r"[^\x00-\x7F]+", " ", stripped_html)
 
         event = Event(
+            guid,
             title,
             host,
             start_date,
