@@ -41,7 +41,7 @@ class S3CSVStack(Stack):
 
         self.csv_bucket = s3.Bucket(
             self,
-            "CsvBucket",
+            "CsvEventsBucket",
             bucket_name=config.csv_bucket_name,
             removal_policy=RemovalPolicy.DESTROY,
             versioned=True,
