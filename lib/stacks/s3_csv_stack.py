@@ -46,4 +46,7 @@ class S3CSVStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
             versioned=True,
             lifecycle_rules=[rule],
+            # Encryption enabled by default by AWS on the server side.
+            # I am doing explict work for learning purposes.
+            encryption=s3.BucketEncryption.S3_MANAGED,
         )
