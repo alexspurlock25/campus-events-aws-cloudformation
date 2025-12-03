@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 
 @dataclass
 class Event:
-    guid: str
+    event_id: str
     title: str
     host: str
     start_date: str
@@ -31,7 +31,7 @@ class Event:
 
     def to_dict(self):
         return {
-            "guid": self.guid,
+            "event_id": self.event_id,
             "title": self.title,
             "host": self.host,
             "start_date": self.start_date,
@@ -99,7 +99,7 @@ def parse_rss(url: str) -> list[Event]:
             categories.append(str(tag.term))
 
         title = str(entry["title"]).strip()
-        guid = str(entry["guid"]).strip()
+        event_id = get_digits_from_guid(guid=str(entry["guid"]).strip())
         host = ""
         location = ""
         link = ""
@@ -138,7 +138,7 @@ def parse_rss(url: str) -> list[Event]:
         event_description = re.sub(r"[^\x00-\x7F]+", " ", stripped_html)
 
         event = Event(
-            guid,
+            event_id,
             title,
             host,
             start_date,
@@ -152,6 +152,10 @@ def parse_rss(url: str) -> list[Event]:
         )
         events.append(event)
     return events
+
+
+def get_digits_from_guid(guid: str) -> str:
+    return guid.rsplit("/")[-1]
 
 
 def events_to_csv(events: list[Event]):
