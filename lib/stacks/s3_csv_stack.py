@@ -17,33 +17,34 @@ class S3CSVStack(Stack):
     csv_bucket: s3.Bucket
 
     def __init__(
-        self, scope: Construct, id: str, config: PipelineConfig, **kwargs
+        self, scope: Construct, construct_id: str, config: PipelineConfig, **kwargs
     ) -> None:
-        super().__init__(scope, id, **kwargs)
+        super().__init__(scope, construct_id, **kwargs)
 
         rule = s3.LifecycleRule(
-            id="MoveOldEventFiles",
+            id=f"{construct_id}-Move-Old-Files-Rule",
             transitions=[
-                # First move to an IA S3 (stays here for 5 days)
+                # First move to an IA S3 (stays here for 30 days)
                 s3.Transition(
                     storage_class=s3.StorageClass.INFREQUENT_ACCESS,
-                    transition_after=Duration.days(5),
+                    transition_after=Duration.days(30),
                 ),
-                # Then Move to Glacier (stays here for 5 days)
+                # Then Move to Glacier (stays here for 30 days)
                 s3.Transition(
                     storage_class=s3.StorageClass.GLACIER,
-                    transition_after=Duration.days(10),
+                    transition_after=Duration.days(60),
                 ),
             ],
-            # Delete after 20 days (deletes after 10 days of existing)
-            expiration=Duration.days(20),
+            # Delete after 90 days from creation
+            expiration=Duration.days(90),
         )
 
         self.csv_bucket = s3.Bucket(
-            self,
-            "CsvEventsBucket",
+            scope=self,
+            id=f"{construct_id}-Events-Bucket",
             bucket_name=config.csv_bucket_name,
             removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
             versioned=True,
             lifecycle_rules=[rule],
             # Encryption enabled by default by AWS on the server side.

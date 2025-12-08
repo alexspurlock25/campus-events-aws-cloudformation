@@ -2,7 +2,8 @@
 # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 import os
 
-from aws_cdk import App, Environment, Tags
+from aws_cdk import App, Environment, Stack, Tags
+from aws_cdk import aws_s3 as s3
 
 from lib.config import load_config
 from lib.stacks import RssToCsvLambdaStack, S3CSVStack
@@ -20,14 +21,14 @@ aws_env = Environment(
 
 s3_csv_stack = S3CSVStack(
     scope=app,
-    id=f"RssPipeline-Storage-{config.environment}",
+    construct_id=f"RssPipeline-Storage-{config.environment}",
     config=config,
     env=aws_env,
 )
 
 lambda_stack = RssToCsvLambdaStack(
     scope=app,
-    id=f"RssPipeline-Lambda-{config.environment}",
+    construct_id=f"RssPipeline-Lambda-{config.environment}",
     config=config,
     csv_bucket=s3_csv_stack.csv_bucket,
     env=aws_env,

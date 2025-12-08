@@ -21,18 +21,18 @@ class RssToCsvLambdaStack(Stack):
     def __init__(
         self,
         scope: Construct,
-        id: str,
+        construct_id: str,
         csv_bucket: s3.Bucket,
         config: PipelineConfig,
         **kwargs,
     ) -> None:
-        super().__init__(scope, id, **kwargs)
+        super().__init__(scope, construct_id, **kwargs)
 
         lambda_dir = os.path.join("lib", "functions", "rss_to_csv")
 
         function = Function(
             scope=self,
-            id=f"RssFunction-{config.rss_feed.name}",
+            id=f"{construct_id}-Fn",
             runtime=Runtime.PYTHON_3_14,
             handler="handler.lambda_handler",
             code=Code.from_docker_build(path=lambda_dir, file="Dockerfile"),
@@ -49,7 +49,7 @@ class RssToCsvLambdaStack(Stack):
 
         rule = events.Rule(
             self,
-            f"RssSchedule={config.rss_feed.name}",
+            f"{construct_id}-Schedule",
             schedule=events.Schedule.expression(config.rss_feed.schedule_expression),
         )
 
