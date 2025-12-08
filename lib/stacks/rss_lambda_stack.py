@@ -11,7 +11,7 @@ from constructs import Construct
 from lib.config import PipelineConfig
 
 
-class LambdaStack(Stack):
+class RssToCsvLambdaStack(Stack):
     """
     Lambda stack handle the rss to csv handler
     """

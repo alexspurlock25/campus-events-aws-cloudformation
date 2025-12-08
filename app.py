@@ -5,7 +5,7 @@ import os
 from aws_cdk import App, Environment, Tags
 
 from lib.config import load_config
-from lib.stacks import LambdaStack, S3CSVStack
+from lib.stacks import RssToCsvLambdaStack, S3CSVStack
 
 app = App()
 
@@ -25,7 +25,7 @@ s3_csv_stack = S3CSVStack(
     env=aws_env,
 )
 
-lambda_stack = LambdaStack(
+lambda_stack = RssToCsvLambdaStack(
     scope=app,
     id=f"RssPipeline-Lambda-{config.environment}",
     config=config,
