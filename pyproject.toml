@@ -3,10 +3,10 @@ name = "campus-events-cloudformation"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Alexander Spurlock",email = "alexanderspurlock@gmail.com"}
+    { name = "Alexander Spurlock", email = "alexanderspurlock@gmail.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.9.0, <4.0.0"
+requires-python = ">=3.11.0, <4.0.0"
 dependencies = [
     "aws-cdk-lib (>=2.223.0,<3.0.0)",
     "constructs (>=10.4.3,<11.0.0)",
@@ -14,16 +14,12 @@ dependencies = [
     "bs4 (>=0.0.2,<0.0.3)",
     "feedparser (>=6.0.12,<7.0.0)",
     "pyyaml (>=6.0.3,<7.0.0)",
-    "boto3 (>=1.41.5,<2.0.0)"
+    "boto3 (>=1.41.5,<2.0.0)",
 ]
 
 [dependency-groups]
-test = [
-    "pytest (>=8.0)"
-]
-dev = [
-    "black (>=25.11.0,<26.0.0)"
-]
+test = ["pytest (>=8.0)"]
+dev = ["black (>=25.11.0,<26.0.0)"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -32,12 +28,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q"
-testpaths = [
-    "tests"
-]
-filterwarnings = [
-    "ignore::UserWarning"
-]
+testpaths = ["tests"]
+filterwarnings = ["ignore::UserWarning"]
 
 [tool.poetry]
 package-mode = false
