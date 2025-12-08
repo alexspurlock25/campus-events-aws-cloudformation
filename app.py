@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 import os
+import sys
 
 from aws_cdk import App, Environment, Stack, Tags
 from aws_cdk import aws_s3 as s3
@@ -11,9 +12,14 @@ from lib.stacks import RssToCsvLambdaStack, S3CSVStack
 app = App()
 
 env_name = (
-    app.node.try_get_context("environment") or "prod"
+    app.node.try_get_context("environment") or "Prod"
 )  # should be dev in the real world
 config = load_config(environment=env_name)
+
+if config is None:
+    print(f"Configuration for environment '{env_name}' not found.", file=sys.stderr)
+    sys.exit(1)
+
 aws_env = Environment(
     account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
     region=os.environ.get("CDK_DEFAULT_REGION", "us-east-2"),

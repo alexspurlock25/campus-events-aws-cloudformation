@@ -1,5 +1,6 @@
+import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Optional, Literal
 import yaml
 
 
@@ -17,21 +18,26 @@ class PipelineConfig:
     csv_bucket_name: str
 
 
-def load_config(environment: str) -> PipelineConfig:
+def load_config(environment: Literal["Prod"]) -> Optional[PipelineConfig]:
     """
     Load configution file based on given environment
-    Possible values: 'prod' (only this for now)
+    Possible values: 'Prod' (only this for now)
     """
 
-    config_dict: Any
+    path = os.path.join("lib", "config", "environments", f"{environment}.yml")
 
-    with open(f"./lib/config/environments/{environment}.yml", "r") as f:
-        config_dict = yaml.safe_load(f)
+    try:
+        with open(path, "r") as f:
+            _config_dict = yaml.safe_load(f)
 
-    rss_feed = RssFeedConfig(**config_dict["rss_feed"])
+            rss_feed = RssFeedConfig(**_config_dict["rss_feed"])
 
-    return PipelineConfig(
-        environment=environment,
-        rss_feed=rss_feed,
-        csv_bucket_name=config_dict["csv_bucket_name"],
-    )
+            return PipelineConfig(
+                environment=environment,
+                rss_feed=rss_feed,
+                csv_bucket_name=_config_dict["csv_bucket_name"],
+            )
+    except OSError as e:
+        # OSError is the base class for I/O errors so this
+        # should catch any error relating to reading the config file
+        return None
