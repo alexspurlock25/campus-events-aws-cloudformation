@@ -1,5 +1,5 @@
 [project]
-name = "campus-events-cloudformation"
+name = "campus-events"
 version = "0.1.0"
 description = ""
 authors = [
