@@ -1,6 +1,6 @@
 # config/environments/prod.yaml
 
-csv_bucket_name: "rss-pipeline-csv"
+csv_bucket_name: "csv-events"
 
 rss_feed:
   name: "University of Cincinnati"
