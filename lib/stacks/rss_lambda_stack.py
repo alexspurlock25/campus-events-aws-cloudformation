@@ -32,7 +32,7 @@ class RssToCsvLambdaStack(Stack):
 
         function = Function(
             scope=self,
-            id=f"{construct_id}-Fn",
+            id=f"{construct_id}-fn",
             runtime=Runtime.PYTHON_3_14,
             handler="handler.lambda_handler",
             code=Code.from_docker_build(path=lambda_dir, file="Dockerfile"),
@@ -49,7 +49,7 @@ class RssToCsvLambdaStack(Stack):
 
         rule = events.Rule(
             self,
-            f"{construct_id}-Schedule",
+            f"{construct_id}-schedule-rule",
             schedule=events.Schedule.expression(config.rss_feed.schedule_expression),
         )
 

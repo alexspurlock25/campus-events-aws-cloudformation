@@ -22,7 +22,7 @@ class S3CSVStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         rule = s3.LifecycleRule(
-            id=f"{construct_id}-Move-Old-Files-Rule",
+            id=f"{construct_id}-mv-rule",
             transitions=[
                 # First move to an IA S3 (stays here for 30 days)
                 s3.Transition(
@@ -41,7 +41,7 @@ class S3CSVStack(Stack):
 
         self.csv_bucket = s3.Bucket(
             scope=self,
-            id=f"{construct_id}-Events-Bucket",
+            id=f"{construct_id}-csv-bucket",
             bucket_name=config.csv_bucket_name,
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
