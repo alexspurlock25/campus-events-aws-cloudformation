@@ -9,40 +9,12 @@ import re
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime, timezone
 from io import StringIO
+from event import Event
+from urllib import request
 
 import boto3
 import feedparser
 from bs4 import BeautifulSoup
-
-
-@dataclass
-class Event:
-    event_id: str
-    title: str
-    host: str
-    start_date: str
-    end_date: str
-    start_time: str
-    end_time: str
-    event_description: str
-    location: str
-    link: str
-    categories: list[str]
-
-    def to_dict(self):
-        return {
-            "event_id": self.event_id,
-            "title": self.title,
-            "host": self.host,
-            "start_date": self.start_date,
-            "end_date": self.end_date,
-            "start_time": self.start_time,
-            "end_time": self.end_time,
-            "event_description": self.event_description,
-            "location": self.location,
-            "external_link": self.link,
-            "categories": self.categories,
-        }
 
 
 date_pattern = r"(\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{4})"
