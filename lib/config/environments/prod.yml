@@ -1,8 +1,9 @@
 # config/environments/prod.yaml
 
-csv_bucket_name: "csv-events"
+landing_suffix: "raw"
+staging_suffix: "staging"
 
 rss_feed:
-  name: "University of Cincinnati"
+  name: "university-of-cincinnati"
   url: "https://campuslink.uc.edu/events.rss"
   schedule_expression: "rate(1 day)"

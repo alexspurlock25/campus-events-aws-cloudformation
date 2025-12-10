@@ -19,8 +19,9 @@ class RssFeedConfig:
 @dataclass
 class PipelineConfig:
     environment: str
+    landing_suffix: str
+    staging_suffix: str
     rss_feed: RssFeedConfig
-    csv_bucket_name: str
 
 
 @dataclass
@@ -64,8 +65,9 @@ def load_environment_config(environment: Literal["prod"]) -> Optional[PipelineCo
 
             return PipelineConfig(
                 environment=environment,
+                landing_suffix=_config_dict["landing_suffix"],
+                staging_suffix=_config_dict["staging_suffix"],
                 rss_feed=rss_feed,
-                csv_bucket_name=_config_dict["csv_bucket_name"],
             )
     except OSError as e:
         # OSError is the base class for I/O errors so this
