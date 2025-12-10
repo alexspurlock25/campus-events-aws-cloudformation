@@ -14,7 +14,8 @@ class S3CSVStack(Stack):
     Stack for CSV storage after parsing RSS data.
     """
 
-    csv_bucket: s3.Bucket
+    landing_bucket: s3.Bucket
+    staging_bucket: s3.Bucket
 
     def __init__(
         self, scope: Construct, construct_id: str, config: PipelineConfig, **kwargs
@@ -39,10 +40,21 @@ class S3CSVStack(Stack):
             expiration=Duration.days(90),
         )
 
-        self.csv_bucket = s3.Bucket(
+        self.landing_bucket = s3.Bucket(
             scope=self,
-            id=f"{construct_id}-csv-bucket",
-            bucket_name=config.csv_bucket_name,
+            id=f"{construct_id}-{config.landing_suffix}",
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+            versioned=True,
+            lifecycle_rules=[rule],
+            # Encryption enabled by default by AWS on the server side.
+            # I am doing explict work for learning purposes.
+            encryption=s3.BucketEncryption.S3_MANAGED,
+        )
+
+        self.staging_bucket = s3.Bucket(
+            scope=self,
+            id=f"{construct_id}-{config.staging_suffix}",
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
             versioned=True,
