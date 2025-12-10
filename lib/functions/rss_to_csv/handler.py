@@ -34,14 +34,16 @@ def lambda_handler(event, context):
     environment_name = os.environ["ENVIRONMENT_NAME"]
 
     try:
-        events = parse_rss(url=rss_url)
-        csv_out = events_to_csv(events=events)
+        # events = parse_rss(url=rss_url)
+        # csv_out = events_to_csv(events=events)
+        rss_response = request.urlopen(rss_url, timeout=30)
+        content = rss_response.read()
 
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        s3_key = f"{environment_name}/{rss_feed_name}/uc_events_{timestamp}.csv"
+        s3_key = f"{rss_feed_name}/events_{timestamp}.xml"
 
         s3_client.put_object(
-            Bucket=bucket_name, Key=s3_key, Body=csv_out, ContentType="text/csv"
+            Bucket=bucket_name, Key=s3_key, Body=content, ContentType="application/xml"
         )
 
         print(f"Successfully uploaded CSV to s3://{bucket_name}/{s3_key}")
@@ -52,7 +54,7 @@ def lambda_handler(event, context):
                 {
                     "message": "RSS feed processed successfully",
                     "s3_location": f"s3://{bucket_name}/{s3_key}",
-                    "items_processed": len(events),
+                    "content_size": len(content),
                 }
             ),
         }
