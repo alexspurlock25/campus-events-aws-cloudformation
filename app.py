@@ -27,11 +27,6 @@ if project_config is None:
 
 root_construct_id = "-".join([project_config.project_name, env_config.environment])
 
-# aws_env = Environment(
-#     account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
-#     region=os.environ.get("CDK_DEFAULT_REGION", "us-east-2"),
-# )
-
 s3_csv_stack = S3CSVStack(
     scope=app,
     construct_id="-".join([root_construct_id, "s3"]),
