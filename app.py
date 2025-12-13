@@ -7,7 +7,12 @@ from aws_cdk import App, Environment, Stack, Tags
 from aws_cdk import aws_s3 as s3
 
 from lib.config import load_environment_config, load_projecttoml_config
-from lib.stacks import RssToCsvLambdaStack, S3CSVStack
+from lib.stacks import (
+    RssToCsvLambdaStack,
+    S3CSVStack,
+    RawToCsvGlueJobStack,
+    RawToCsvGlueJobStackParamProps,
+)
 
 app = App()
 
@@ -40,6 +45,17 @@ lambda_stack = RssToCsvLambdaStack(
     csv_bucket=s3_csv_stack.raw_bucket,
 )
 lambda_stack.add_dependency(s3_csv_stack)
+
+glue_job_stack = RawToCsvGlueJobStack(
+    scope=app,
+    construct_id="-".join([root_construct_id, "glue"]),
+    props=RawToCsvGlueJobStackParamProps(
+        raw_bucket=s3_csv_stack.raw_bucket,
+        staging_bucket=s3_csv_stack.staging_bucket,
+        scripts_bucket=s3_csv_stack.scripts_bucket,
+    ),
+)
+glue_job_stack.add_dependency(s3_csv_stack)
 
 Tags.of(app).add("Project", "RssPipeline")
 Tags.of(app).add("Environment", env_config.environment)
