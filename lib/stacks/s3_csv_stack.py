@@ -42,7 +42,7 @@ class S3CSVStack(Stack):
             expiration=Duration.days(90),
         )
 
-        self.landing_bucket = s3.Bucket(
+        self.raw_bucket = s3.Bucket(
             scope=self,
             id=f"{construct_id}-{config.raw_suffix}",
             removal_policy=RemovalPolicy.DESTROY,

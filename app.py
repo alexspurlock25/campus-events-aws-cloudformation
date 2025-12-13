@@ -37,7 +37,7 @@ lambda_stack = RssToCsvLambdaStack(
     scope=app,
     construct_id="-".join([root_construct_id, "lambda"]),
     config=env_config,
-    csv_bucket=s3_csv_stack.landing_bucket,
+    csv_bucket=s3_csv_stack.raw_bucket,
 )
 lambda_stack.add_dependency(s3_csv_stack)
 
