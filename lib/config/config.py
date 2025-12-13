@@ -19,8 +19,9 @@ class RssFeedConfig:
 @dataclass
 class PipelineConfig:
     environment: str
-    landing_suffix: str
+    raw_suffix: str
     staging_suffix: str
+    scripts_suffix: str
     rss_feed: RssFeedConfig
 
 
@@ -65,8 +66,9 @@ def load_environment_config(environment: Literal["prod"]) -> Optional[PipelineCo
 
             return PipelineConfig(
                 environment=environment,
-                landing_suffix=_config_dict["landing_suffix"],
+                raw_suffix=_config_dict["raw_suffix"],
                 staging_suffix=_config_dict["staging_suffix"],
+                scripts_suffix=_config_dict["scripts_suffix"],
                 rss_feed=rss_feed,
             )
     except OSError as e:

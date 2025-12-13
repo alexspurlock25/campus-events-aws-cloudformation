@@ -1,7 +1,8 @@
 # config/environments/prod.yaml
 
-landing_suffix: "raw"
+raw_suffix: "raw"
 staging_suffix: "staging"
+scripts_suffix: "scripts"
 
 rss_feed:
   name: "university-of-cincinnati"

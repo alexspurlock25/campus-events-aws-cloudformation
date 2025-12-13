@@ -2,8 +2,9 @@
 Storing CSV files
 """
 
+import os
 from aws_cdk import RemovalPolicy, Stack
-from aws_cdk import aws_s3 as s3, Duration
+from aws_cdk import aws_s3 as s3, Duration, aws_s3_deployment as s3_deploy
 from constructs import Construct
 
 from lib.config import PipelineConfig
@@ -14,8 +15,9 @@ class S3CSVStack(Stack):
     Stack for CSV storage after parsing RSS data.
     """
 
-    landing_bucket: s3.Bucket
+    raw_bucket: s3.Bucket
     staging_bucket: s3.Bucket
+    scripts_bucket: s3.Bucket
 
     def __init__(
         self, scope: Construct, construct_id: str, config: PipelineConfig, **kwargs
@@ -42,7 +44,7 @@ class S3CSVStack(Stack):
 
         self.landing_bucket = s3.Bucket(
             scope=self,
-            id=f"{construct_id}-{config.landing_suffix}",
+            id=f"{construct_id}-{config.raw_suffix}",
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
             versioned=True,
@@ -62,4 +64,24 @@ class S3CSVStack(Stack):
             # Encryption enabled by default by AWS on the server side.
             # I am doing explict work for learning purposes.
             encryption=s3.BucketEncryption.S3_MANAGED,
+        )
+
+        self.scripts_bucket = s3.Bucket(
+            scope=self,
+            id=f"{construct_id}-{config.scripts_suffix}",
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+            versioned=True,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+        )
+
+        scripts_path = os.path.join("lib", "scripts")
+
+        s3_deploy.BucketDeployment(
+            scope=self,
+            id=f"{construct_id}-deploy-scripts",
+            sources=[s3_deploy.Source.asset(path=scripts_path)],
+            destination_bucket=self.scripts_bucket,
+            destination_key_prefix="scripts",
+            prune=True,
         )
