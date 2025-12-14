@@ -45,6 +45,7 @@ class RawToCsvGlueJobStack(Stack):
                 "--enable-spark-ui": True,
                 "--enable-metrics": True,
                 "--enable-continuous-cloudwatch-log": True,
+                "--additional-python-modules": "feedparser, beautifulsoup4",
                 "--SOURCE_BUCKET_NAME": props.raw_bucket.bucket_name,
                 "--TARGET_BUCKET_NAME": props.staging_bucket.bucket_name,
             },
