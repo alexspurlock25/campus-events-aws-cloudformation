@@ -9,10 +9,6 @@ from urllib import request
 
 import boto3
 
-
-date_pattern = r"(\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{4})"
-time_pattern = r"(\d{2}:\d{2}:\d{2})"
-
 s3_client = boto3.client("s3")
 
 
