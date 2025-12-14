@@ -28,13 +28,13 @@ class RssToCsvLambdaStack(Stack):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        lambda_dir = os.path.join("lib", "functions", "rss_to_csv")
+        lambda_dir = os.path.join("lib", "functions", "rss_to_raw_bucket")
 
         function = Function(
             scope=self,
             id=f"{construct_id}-fn",
             runtime=Runtime.PYTHON_3_14,
-            handler="handler.lambda_handler",
+            handler="rss_to_raw_bucket_fn.handler",
             code=Code.from_docker_build(path=lambda_dir, file="Dockerfile"),
             environment={
                 "RSS_FEED_URL": config.rss_feed.url,
