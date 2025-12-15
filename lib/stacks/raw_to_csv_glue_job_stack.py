@@ -1,5 +1,11 @@
 from dataclasses import dataclass
-from aws_cdk import Stack, aws_glue as glue, aws_iam as iam
+from aws_cdk import (
+    Stack,
+    aws_glue as glue,
+    aws_iam as iam,
+    aws_events as events,
+    aws_events_targets as targets,
+)
 from aws_cdk.aws_s3 import IBucket
 
 
@@ -31,7 +37,7 @@ class RawToCsvGlueJobStack(Stack):
         props.raw_bucket.grant_read_write(glue_role)
         props.staging_bucket.grant_read_write(glue_role)
 
-        glue.CfnJob(
+        job = glue.CfnJob(
             scope=self,
             id=f"{construct_id}-job",
             role=glue_role.role_arn,
@@ -51,4 +57,23 @@ class RawToCsvGlueJobStack(Stack):
                 "--SOURCE_BUCKET_NAME": props.raw_bucket.bucket_name,
                 "--TARGET_BUCKET_NAME": props.staging_bucket.bucket_name,
             },
+        )
+
+        rule = events.Rule(
+            scope=self,
+            id=f"{construct_id}-on-raw-put-rule",
+            event_pattern=events.EventPattern(
+                source=["aws.s3"],
+                detail_type=["Object Created"],
+                detail={
+                    "bucket": {"name": [props.raw_bucket.bucket_name]},
+                    "object": {"key": [{"suffix": ".xml"}]},
+                },
+            ),
+        )
+
+        rule.add_target(
+            targets.AwsApi(
+                service="Glue", action="startJobRun", parameters={"JobName": job.ref}
+            )
         )
