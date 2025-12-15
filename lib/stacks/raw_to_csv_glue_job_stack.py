@@ -16,7 +16,7 @@ class RawToCsvGlueJobStack(Stack):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        glue_rule = iam.Role(
+        glue_role = iam.Role(
             scope=self,
             id=f"{construct_id}-role",
             assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
@@ -27,12 +27,14 @@ class RawToCsvGlueJobStack(Stack):
             ],
         )
 
-        props.scripts_bucket.grant_read(glue_rule)
+        props.scripts_bucket.grant_read(glue_role)
+        props.raw_bucket.grant_read(glue_role)
+        props.staging_bucket.grant_read_write(glue_role)
 
         glue.CfnJob(
             scope=self,
             id=f"{construct_id}-job",
-            role=glue_rule.role_arn,
+            role=glue_role.role_arn,
             glue_version="5.0",
             worker_type="G.1X",
             number_of_workers=2,
