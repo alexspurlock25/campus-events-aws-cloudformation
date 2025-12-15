@@ -70,9 +70,9 @@ class Event:
         }
 
 
-def parse_rss(url: str) -> list[Event]:
+def parse_rss(content: str) -> list[Event]:
     events: list[Event] = []
-    feed = feedparser.parse(url)
+    feed = feedparser.parse(content)
 
     for entry in feed.entries:
         categories: list[str] = []
@@ -182,8 +182,44 @@ def main():
             obj = s3_client.get_object(Bucket=args.source_bucket_name, Key=key)
             raw_bytes = obj["Body"].read()
             xml_content = raw_bytes.decode("utf-8", errors="replace")
+            events = parse_rss(content=xml_content)
+            csv_events = events_to_csv(events=events)
+
+            # example
+            # prefix: university-of-cincinnati, filename=events_20251210_063602.xml, base=events_20251210_063602
+            # csv_key: university-of-cincinnati/processed/events_20251210_063602.csv
+
+            prefix, filename = key.rsplit("/", 1)
+            base = filename.rsplit(".", 1)[0]
+
+            # TODO upload csv to staging
+            s3_client.put_object(
+                Bucket=args.target_bucket_name,
+                Key=f"{prefix}/{base}.csv",
+                Body=csv_events.encode("utf-8"),
+                ContentType="text/csv",
+            )
+            print(f"wrote s3://{args.target_bucket_name}/{prefix}/{base}.csv")
+
+            # TODO upload csv to /processed/ in raw bucket
+            dest_key = f"{prefix}/processed/{filename}"
+            s3_client.copy_object(
+                Bucket=args.source_bucket_name,
+                Key=dest_key,
+                CopySource={
+                    "Bucket": args.source_bucket_name,
+                    "Key": key,
+                },
+            )
+
+            # TODO remove original file from raw bucket
+            s3_client.delete_object(Bucket=args.source_bucket_name, Key=key)
+            print(
+                f"moved s3://{args.source_bucket_name}/{key} -> s3://{args.source_bucket_name}/{dest_key}"
+            )
         except Exception as e:
             print(f"there was an error while processing {key}, error: {e}")
+            break
 
 
 if __name__ == "__main__":

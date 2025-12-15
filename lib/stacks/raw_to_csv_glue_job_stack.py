@@ -28,7 +28,7 @@ class RawToCsvGlueJobStack(Stack):
         )
 
         props.scripts_bucket.grant_read(glue_role)
-        props.raw_bucket.grant_read(glue_role)
+        props.raw_bucket.grant_read_write(glue_role)
         props.staging_bucket.grant_read_write(glue_role)
 
         glue.CfnJob(
