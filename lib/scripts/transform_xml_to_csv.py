@@ -152,19 +152,38 @@ def events_to_csv(events: list[Event]):
     return output.getvalue()
 
 
-def get_raw_files() -> list[str]:
+def get_raw_keys() -> list[str]:
     paginator = s3_client.get_paginator("list_objects_v2")
-    files: list[str] = []
+    keys: list[str] = []
     for page in paginator.paginate(Bucket=args.source_bucket_name):
         for obj in page.get("Contents", []):
             file = obj.get("Key")
             if file and not file.endswith("/"):
-                files.append(file)
-    return files
+                keys.append(file)
+    return keys
 
 
 def main():
-    print(get_raw_files())
+    raw_keys = get_raw_keys()
+    if not raw_keys:
+        print("no files to process!")
+
+    for key in raw_keys:
+        if "/processed/" in key:
+            print(f"skipping processed key: {key}")
+            continue
+
+        if not key.endswith(".xml"):
+            print(f"skipping non-xml key: {key}")
+            continue
+
+        try:
+            print(f"processing s3://{args.source_bucket_name}/{key}")
+            obj = s3_client.get_object(Bucket=args.source_bucket_name, Key=key)
+            raw_bytes = obj["Body"].read()
+            xml_content = raw_bytes.decode("utf-8", errors="replace")
+        except Exception as e:
+            print(f"there was an error while processing {key}, error: {e}")
 
 
 if __name__ == "__main__":
