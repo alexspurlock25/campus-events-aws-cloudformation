@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
-import os
 import sys
 
-from aws_cdk import App, Environment, Stack, Tags
-from aws_cdk import aws_s3 as s3
+from aws_cdk import App, Tags
 
 from lib.config import load_environment_config, load_projecttoml_config
 from lib.stacks import (
-    RssToCsvLambdaStack,
-    S3CSVStack,
     RawToCsvGlueJobStack,
     RawToCsvGlueJobStackParamProps,
+    RssToCsvLambdaStack,
+    S3CSVStack,
 )
 
 app = App()
@@ -50,6 +48,7 @@ glue_job_stack = RawToCsvGlueJobStack(
     scope=app,
     construct_id="-".join([root_construct_id, "glue"]),
     props=RawToCsvGlueJobStackParamProps(
+        athena_results_bucket=s3_csv_stack.athena_results_bucket,
         raw_bucket=s3_csv_stack.raw_bucket,
         staging_bucket=s3_csv_stack.staging_bucket,
         scripts_bucket=s3_csv_stack.scripts_bucket,

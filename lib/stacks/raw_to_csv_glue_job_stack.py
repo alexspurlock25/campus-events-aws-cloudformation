@@ -11,6 +11,7 @@ from aws_cdk.aws_s3 import IBucket
 
 @dataclass
 class RawToCsvGlueJobStackParamProps:
+    athena_results_bucket: IBucket
     raw_bucket: IBucket
     staging_bucket: IBucket
     scripts_bucket: IBucket
