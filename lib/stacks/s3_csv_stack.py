@@ -3,8 +3,10 @@ Storing CSV files
 """
 
 import os
-from aws_cdk import RemovalPolicy, Stack
-from aws_cdk import aws_s3 as s3, Duration, aws_s3_deployment as s3_deploy
+
+from aws_cdk import Duration, RemovalPolicy, Stack
+from aws_cdk import aws_s3 as s3
+from aws_cdk import aws_s3_deployment as s3_deploy
 from constructs import Construct
 
 from lib.config import PipelineConfig
@@ -54,6 +56,7 @@ class S3CSVStack(Stack):
             scope=self,
             id=f"{construct_id}-{config.raw_suffix}",
             removal_policy=RemovalPolicy.DESTROY,
+            event_bridge_enabled=True,  # This is to trigger the glue job to parse xml file and convert that data to csv format
             auto_delete_objects=True,
             versioned=True,
             lifecycle_rules=[rule],
