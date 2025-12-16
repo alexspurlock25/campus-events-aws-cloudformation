@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from aws_cdk import (
-    Stack,
-    aws_glue as glue,
-    aws_iam as iam,
-    aws_events as events,
-    aws_events_targets as targets,
-)
+
+from aws_cdk import Aws, Stack
+from aws_cdk import aws_athena as athena
+from aws_cdk import aws_events as events
+from aws_cdk import aws_events_targets as targets
+from aws_cdk import aws_glue as glue
+from aws_cdk import aws_iam as iam
 from aws_cdk.aws_s3 import IBucket
 
 
@@ -38,27 +38,83 @@ class RawToCsvGlueJobStack(Stack):
         props.raw_bucket.grant_read_write(glue_role)
         props.staging_bucket.grant_read_write(glue_role)
 
+        glue_job_name = f"{construct_id}-xml-to-csv"
         job = glue.CfnJob(
             scope=self,
             id=f"{construct_id}-job",
+            name=glue_job_name,
             role=glue_role.role_arn,
             glue_version="5.0",
             worker_type="G.1X",
             number_of_workers=2,
+            timeout=5,
+            max_retries=0,
             command=glue.CfnJob.JobCommandProperty(
                 name="glueetl",
                 python_version="3",
                 script_location=f"s3://{props.scripts_bucket.bucket_name}/scripts/transform_xml_to_csv.py",
             ),
             default_arguments={
-                "--enable-spark-ui": True,
-                "--enable-metrics": True,
-                "--enable-continuous-cloudwatch-log": True,
-                "--additional-python-modules": "feedparser, beautifulsoup4",
+                "--job-language": "python",
+                "--TempDir": f"s3://{props.scripts_bucket.bucket_name}/temp/",
+                "--continuous-log-logGroup": f"/aws-glue/jobs/{glue_job_name}",
+                "--enable-spark-ui": "true",
+                "--enable-metrics": "true",
+                "--enable-continuous-cloudwatch-log": "true",
+                "--additional-python-modules": "feedparser,beautifulsoup4",
                 "--SOURCE_BUCKET_NAME": props.raw_bucket.bucket_name,
                 "--TARGET_BUCKET_NAME": props.staging_bucket.bucket_name,
             },
         )
+
+        glue_db_name = "campus_events"
+        glue_db = glue.CfnDatabase(
+            scope=self,
+            id=f"{construct_id}-events-database",
+            catalog_id=Aws.ACCOUNT_ID,
+            database_input=glue.CfnDatabase.DatabaseInputProperty(name=glue_db_name),
+        )
+
+        crawler_role = iam.Role(
+            scope=self,
+            id=f"{construct_id}-crawler-role",
+            assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name(
+                    "service-role/AWSGlueServiceRole"
+                )
+            ],
+        )
+        props.staging_bucket.grant_read(crawler_role)
+
+        athena.CfnWorkGroup(
+            scope=self,
+            id=f"{construct_id}-workgroup",
+            name=f"{construct_id}-workgroup",
+            state="ENABLED",
+            work_group_configuration=athena.CfnWorkGroup.WorkGroupConfigurationProperty(
+                enforce_work_group_configuration=True,
+                result_configuration=athena.CfnWorkGroup.ResultConfigurationProperty(
+                    output_location=f"s3://{props.athena_results_bucket.bucket_name}/athena-results/"
+                ),
+            ),
+        )
+
+        glue_crawler = glue.CfnCrawler(
+            scope=self,
+            id=f"{construct_id}-stage-crawler",
+            role=crawler_role.role_arn,
+            database_name=glue_db_name,
+            targets=glue.CfnCrawler.TargetsProperty(
+                s3_targets=[
+                    glue.CfnCrawler.S3TargetProperty(
+                        path=f"s3://{props.staging_bucket.bucket_name}/"
+                    )
+                ]
+            ),
+            table_prefix="events_",
+        )
+        glue_crawler.add_dependency(glue_db)
 
         rule = events.Rule(
             scope=self,
@@ -73,8 +129,31 @@ class RawToCsvGlueJobStack(Stack):
             ),
         )
 
+        eventbridge_role = iam.Role(
+            scope=self,
+            id=f"{construct_id}-eventbridge-role",
+            assumed_by=iam.ServicePrincipal("events.amazonaws.com"),
+        )
+
+        eventbridge_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["glue:StartJobRun"],
+                resources=[
+                    f"arn:aws:glue:{Aws.REGION}:{Aws.ACCOUNT_ID}:job/{glue_job_name}"
+                ],
+            )
+        )
+
         rule.add_target(
             targets.AwsApi(
-                service="Glue", action="startJobRun", parameters={"JobName": job.ref}
+                service="Glue",
+                action="startJobRun",
+                parameters={"JobName": job.ref},
+                policy_statement=iam.PolicyStatement(
+                    actions=["glue:StartJobRun"],
+                    resources=[
+                        f"arn:aws:glue:{Aws.REGION}:{Aws.ACCOUNT_ID}:job/{glue_job_name}"
+                    ],
+                ),
             )
         )
