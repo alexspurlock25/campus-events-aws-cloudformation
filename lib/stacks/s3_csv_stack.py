@@ -15,6 +15,7 @@ class S3CSVStack(Stack):
     Stack for CSV storage after parsing RSS data.
     """
 
+    athena_results_bucket: s3.Bucket
     raw_bucket: s3.Bucket
     staging_bucket: s3.Bucket
     scripts_bucket: s3.Bucket
@@ -40,6 +41,13 @@ class S3CSVStack(Stack):
             ],
             # Delete after 90 days from creation
             expiration=Duration.days(90),
+        )
+
+        self.athena_results_bucket = s3.Bucket(
+            scope=self,
+            id=f"{construct_id}-athena-results",
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
         )
 
         self.raw_bucket = s3.Bucket(
