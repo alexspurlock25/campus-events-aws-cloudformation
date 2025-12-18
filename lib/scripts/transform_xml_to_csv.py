@@ -1,11 +1,15 @@
-import sys, re, feedparser, csv
+import csv
+import re
+import sys
+from dataclasses import asdict, dataclass, fields
+from datetime import datetime, timezone
+from importlib.metadata import metadata
 from io import StringIO
-from dataclasses import fields, asdict
-from datetime import datetime
-from dataclasses import dataclass
+
+import boto3
+import feedparser
 from awsglue.utils import getResolvedOptions
 from bs4 import BeautifulSoup
-import boto3
 
 s3_client = boto3.client("s3")
 
@@ -139,15 +143,23 @@ def get_digits_from_guid(guid: str) -> str:
     return guid.rsplit("/")[-1]
 
 
-def events_to_csv(events: list[Event]):
+def events_to_csv(events: list[Event], filename: str):
     output = StringIO()
-    field_names = [f.name for f in fields(Event)]
+    base_fields = [f.name for f in fields(Event)]
+    metadata_fields = ["record_source", "load_date"]
+    field_names = metadata_fields + base_fields
 
     writer = csv.DictWriter(output, fieldnames=field_names)
     writer.writeheader()
 
+    load_date = datetime.now(tz=timezone.utc).isoformat()
+
     for event in events:
-        writer.writerow(asdict(event))
+        row = asdict(event)
+        row["record_source"] = filename
+        row["load_date"] = load_date
+
+        writer.writerow(row)
 
     return output.getvalue()
 
@@ -179,12 +191,6 @@ def main():
 
         try:
             print(f"processing s3://{args.source_bucket_name}/{key}")
-            obj = s3_client.get_object(Bucket=args.source_bucket_name, Key=key)
-            raw_bytes = obj["Body"].read()
-            xml_content = raw_bytes.decode("utf-8", errors="replace")
-            events = parse_rss(content=xml_content)
-            csv_events = events_to_csv(events=events)
-
             # example
             # prefix: university-of-cincinnati, filename=events_20251210_063602.xml, base=events_20251210_063602
             # csv_key: university-of-cincinnati/processed/events_20251210_063602.csv
@@ -192,7 +198,13 @@ def main():
             prefix, filename = key.rsplit("/", 1)
             base = filename.rsplit(".", 1)[0]
 
-            # TODO upload csv to staging
+            obj = s3_client.get_object(Bucket=args.source_bucket_name, Key=key)
+            raw_bytes = obj["Body"].read()
+            xml_content = raw_bytes.decode("utf-8", errors="replace")
+            events = parse_rss(content=xml_content)
+            csv_events = events_to_csv(events=events, filename=filename)
+
+            # step 1: upload csv to staging
             s3_client.put_object(
                 Bucket=args.target_bucket_name,
                 Key=f"{prefix}/{base}.csv",
@@ -201,7 +213,7 @@ def main():
             )
             print(f"wrote s3://{args.target_bucket_name}/{prefix}/{base}.csv")
 
-            # TODO upload csv to /processed/ in raw bucket
+            # step 2: copy csv to /processed/ in raw bucket
             dest_key = f"{prefix}/processed/{filename}"
             s3_client.copy_object(
                 Bucket=args.source_bucket_name,
@@ -212,7 +224,7 @@ def main():
                 },
             )
 
-            # TODO remove original file from raw bucket
+            # step 3: remove original file from raw bucket
             s3_client.delete_object(Bucket=args.source_bucket_name, Key=key)
             print(
                 f"moved s3://{args.source_bucket_name}/{key} -> s3://{args.source_bucket_name}/{dest_key}"
