@@ -57,7 +57,7 @@ class RawToCsvGlueJobStack(Stack):
             ),
             default_arguments={
                 "--job-language": "python",
-                "--TempDir": f"s3://{props.scripts_bucket.bucket_name}/temp/",
+                "--TempDir": f"s3://{props.raw_bucket.bucket_name}/xml_to_csv_logs/",
                 "--continuous-log-logGroup": f"/aws-glue/jobs/{glue_job_name}",
                 "--enable-spark-ui": "true",
                 "--enable-metrics": "true",
