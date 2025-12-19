@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>University of Cincinnati Public Events occurring between Thursday, December 11, 2025 1:07
+      AM EST and Wednesday, March 11, 2026 2:07 AM EDT</title>
+    <description>A listing of public events for University of Cincinnati occurring between Thursday,
+      December 11, 2025 1:07 AM EST and Wednesday, March 11, 2026 2:07 AM EDT.</description>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 11 Dec 2025 06:07:35 GMT</lastBuildDate>
+    <category>Public Events</category>
+    <generator>Campus Labs Engage</generator>
+    <ttl>300</ttl>
+    <pubDate>Thu, 11 Dec 2025 06:07:35 GMT</pubDate>
+    <link>https://campuslink.uc.edu/events</link>
+    <item>
+      <title>BCMS Aero Sub-Team Meeting</title>
+      <guid>https://campuslink.uc.edu/event/11654144</guid>
+      <link>https://campuslink.uc.edu/event/11654144</link>
+      <enclosure
+        url="https://se-images.campuslabs.com/clink/images/d2a8ef3f-dcd6-4dad-9aa3-7502141ea7e56975a7b7-c908-479b-844d-90043ad49444.png?preset=med-w"
+        length="1" type="image/jpeg" />
+      <description><![CDATA[<div class="h-event vevent">
+  <div class="p-name summary">BCMS Aero Sub-Team Meeting</div>
+  <div class="p-description description"><p>Each week, the Bearcats Motorsports Aero Sub-Team will be meeting in Old Chem 685 on Thursdays from 5-6pm.&nbsp;</p></div>
+  <div>
+    <p>
+      From <time class="dt-start dtstart" datetime="2025-12-11T17:00:00.0000000-05:00" title="2025-12-11T17:00:00.0000000-05:00">Thursday, December 11, 2025 5:00 PM</time>
+      to <time class="dt-end dtend" datetime="2025-12-11T18:00:00.0000000-05:00" title="2025-12-11T18:00:00.0000000-05:00">6:00 PM EST</time>
+      at <span class="p-location location">Old Chem 685</span>.
+    </p>
+  </div>
+</div>]]></description>
+      <category>ThoughtfulLearning</category>
+      <category>Club Sports Competition</category>
+      <category>Campus Event</category>
+      <category>Leadership Development</category>
+      <category>Training</category>
+      <pubDate>Thu, 11 Dec 2025 06:07:35 GMT</pubDate>
+      <start xmlns="events">Thu, 11 Dec 2025 22:00:00 GMT</start>
+      <end xmlns="events">Thu, 11 Dec 2025 23:00:00 GMT</end>
+      <location xmlns="events">Old Chem 685</location>
+      <status xmlns="events">confirmed</status>
+      <author>test@ucmail.uc.edu (Bearcats Motorsports at the University of Cincinnati)</author>
+      <host xmlns="events">Bearcats Motorsports at the University of Cincinnati</host>
+    </item>
+    <item>
+      <title>Full Team General Meeting</title>
+      <guid>https://campuslink.uc.edu/event/11653846</guid>
+      <link>https://campuslink.uc.edu/event/11653846</link>
+      <enclosure
+        url="https://se-images.campuslabs.com/clink/images/1b215f71-1743-4344-9ce9-b99cf5d75ad0d41debd3-b30b-4820-96c8-834baa1743f3.png?preset=med-w"
+        length="1" type="image/jpeg" />
+      <description><![CDATA[<div class="h-event vevent">
+  <div class="p-name summary">Full Team General Meeting</div>
+  <div class="p-description description"><p>The full team will be meeting in our Rhodes 407 Shop on a weekly basis to discuss ongoing projects and priorities of the team.&nbsp;</p></div>
+  <div>
+    <p>
+      From <time class="dt-start dtstart" datetime="2025-12-11T18:00:00.0000000-05:00" title="2025-12-11T18:00:00.0000000-05:00">Thursday, December 11, 2025 6:00 PM</time>
+      to <time class="dt-end dtend" datetime="2025-12-11T19:00:00.0000000-05:00" title="2025-12-11T19:00:00.0000000-05:00">7:00 PM EST</time>
+      at <span class="p-location location">Rhodes 407/440C</span>.
+    </p>
+  </div>
+</div>]]></description>
+      <category>ThoughtfulLearning</category>
+      <category>Club Sports Competition</category>
+      <category>Leadership Development</category>
+      <category>Workshop</category>
+      <pubDate>Thu, 11 Dec 2025 06:07:35 GMT</pubDate>
+      <start xmlns="events">Thu, 11 Dec 2025 23:00:00 GMT</start>
+      <end xmlns="events">Fri, 12 Dec 2025 00:00:00 GMT</end>
+      <location xmlns="events">Rhodes 407/440C</location>
+      <status xmlns="events">confirmed</status>
+      <author>test@ucmail.uc.edu (Bearcats Motorsports at the University of Cincinnati)</author>
+      <host xmlns="events">Bearcats Motorsports at the University of Cincinnati</host>
+    </item>
+  </channel>
+</rss>
