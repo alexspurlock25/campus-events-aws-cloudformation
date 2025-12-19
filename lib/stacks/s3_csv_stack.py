@@ -45,17 +45,11 @@ class S3CSVStack(Stack):
             expiration=Duration.days(90),
         )
 
-        self.athena_results_bucket = s3.Bucket(
-            scope=self,
-            id=f"{construct_id}-athena-results",
-            removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
-        )
-
         self.raw_bucket = s3.Bucket(
             scope=self,
-            id=f"{construct_id}-{config.raw_suffix}",
-            removal_policy=RemovalPolicy.DESTROY,
+            id="RawBucket",
+            bucket_name=f"{construct_id}-raw",
+            removal_policy=RemovalPolicy.DESTROY,  # depending on use case, don't delete everything when stack is destroyed
             event_bridge_enabled=True,  # This is to trigger the glue job to parse xml file and convert that data to csv format
             auto_delete_objects=True,
             versioned=True,
@@ -67,23 +61,21 @@ class S3CSVStack(Stack):
 
         self.staging_bucket = s3.Bucket(
             scope=self,
-            id=f"{construct_id}-{config.staging_suffix}",
+            id="StagingBucket",
+            bucket_name=f"{construct_id}-staging",
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
             versioned=True,
             lifecycle_rules=[rule],
-            # Encryption enabled by default by AWS on the server side.
-            # I am doing explict work for learning purposes.
-            encryption=s3.BucketEncryption.S3_MANAGED,
         )
 
         self.scripts_bucket = s3.Bucket(
             scope=self,
-            id=f"{construct_id}-{config.scripts_suffix}",
+            id="ScriptsBucket",
+            bucket_name=f"{construct_id}-scripts",
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
             versioned=True,
-            encryption=s3.BucketEncryption.S3_MANAGED,
         )
 
         scripts_path = os.path.join("lib", "scripts")
@@ -95,4 +87,12 @@ class S3CSVStack(Stack):
             destination_bucket=self.scripts_bucket,
             destination_key_prefix="transform",
             prune=True,
+        )
+
+        self.athena_results_bucket = s3.Bucket(
+            scope=self,
+            id="AthenaResultsBucket",
+            bucket_name=f"{construct_id}-athena-results",
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
         )

@@ -1,9 +1,3 @@
-# config/environments/prod.yaml
-
-raw_suffix: "raw"
-staging_suffix: "staging"
-scripts_suffix: "scripts"
-
 rss_feed:
   name: "university-of-cincinnati"
   url: "https://campuslink.uc.edu/events.rss"
