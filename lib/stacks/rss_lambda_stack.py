@@ -32,7 +32,8 @@ class RssToCsvLambdaStack(Stack):
 
         function = Function(
             scope=self,
-            id=f"{construct_id}-fn",
+            id="FetchRssFeedFn",
+            function_name=f"{construct_id}-fn",
             runtime=Runtime.PYTHON_3_14,
             handler="rss_to_raw_bucket_fn.handler",
             code=Code.from_docker_build(path=lambda_dir, file="Dockerfile"),
@@ -40,7 +41,6 @@ class RssToCsvLambdaStack(Stack):
                 "RSS_FEED_URL": config.rss_feed.url,
                 "RSS_FEED_NAME": config.rss_feed.name,
                 "CSV_BUCKET_NAME": csv_bucket.bucket_name,
-                "ENVIRONMENT_NAME": config.environment,
             },
             timeout=Duration.seconds(30),
         )
