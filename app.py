@@ -15,8 +15,9 @@ from lib.stacks import (
 app = App()
 
 env_name = (
-    app.node.try_get_context("environment") or "prod"
-)  # should be dev in the real world
+    app.node.try_get_context("environment")
+    or "prod"  # should be dev if env is missing in the real world
+)
 env_config = load_environment_config(environment=env_name)
 project_config = load_projecttoml_config()
 
