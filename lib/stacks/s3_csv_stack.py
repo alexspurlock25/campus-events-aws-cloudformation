@@ -85,7 +85,6 @@ class S3CSVStack(Stack):
             id=f"{construct_id}-deploy-scripts",
             sources=[s3_deploy.Source.asset(path=scripts_path)],
             destination_bucket=self.scripts_bucket,
-            destination_key_prefix="transform",
             prune=True,
         )
 
