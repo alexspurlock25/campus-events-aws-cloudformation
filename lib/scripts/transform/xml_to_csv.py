@@ -1,3 +1,4 @@
+import os
 import csv
 import re
 import sys
@@ -8,8 +9,12 @@ from io import StringIO
 
 import boto3
 import feedparser
-from awsglue.utils import getResolvedOptions
 from bs4 import BeautifulSoup
+
+try:
+    from awsglue.utils import getResolvedOptions
+except Exception:
+    getResolvedOptions = None
 
 s3_client = boto3.client("s3")
 
@@ -25,20 +30,27 @@ class Args:
     target_bucket_name: str
 
 
-_args = getResolvedOptions(
-    sys.argv,
-    [
-        "JOB_NAME",
-        "SOURCE_BUCKET_NAME",
-        "TARGET_BUCKET_NAME",
-    ],
-)
+if getResolvedOptions:
+    _args = getResolvedOptions(
+        sys.argv,
+        [
+            "JOB_NAME",
+            "SOURCE_BUCKET_NAME",
+            "TARGET_BUCKET_NAME",
+        ],
+    )
 
-args = Args(
-    job_name=_args["JOB_NAME"],
-    source_bucket_name=_args["SOURCE_BUCKET_NAME"],
-    target_bucket_name=_args["TARGET_BUCKET_NAME"],
-)
+    args = Args(
+        job_name=_args["JOB_NAME"],
+        source_bucket_name=_args["SOURCE_BUCKET_NAME"],
+        target_bucket_name=_args["TARGET_BUCKET_NAME"],
+    )
+else:
+    args = Args(
+        job_name=os.environ.get("JOB_NAME", "local-job"),
+        source_bucket_name=os.environ.get("SOURCE_BUCKET_NAME", "test-source-bucket"),
+        target_bucket_name=os.environ.get("TARGET_BUCKET_NAME", "test-target-bucket"),
+    )
 
 date_pattern = r"(\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{4})"
 time_pattern = r"(\d{2}:\d{2}:\d{2})"
@@ -143,7 +155,7 @@ def get_digits_from_guid(guid: str) -> str:
     return guid.rsplit("/")[-1]
 
 
-def events_to_csv(events: list[Event], filename: str):
+def events_to_csv(events: list[Event], filename: str) -> str:
     output = StringIO()
     base_fields = [f.name for f in fields(Event)]
     metadata_fields = ["record_source", "load_date"]
@@ -197,6 +209,8 @@ def main():
 
             prefix, filename = key.rsplit("/", 1)
             base = filename.rsplit(".", 1)[0]
+            print(f"prefix: {prefix}")
+            print(f"filename: {filename} | base: {base}")
 
             obj = s3_client.get_object(Bucket=args.source_bucket_name, Key=key)
             raw_bytes = obj["Body"].read()
