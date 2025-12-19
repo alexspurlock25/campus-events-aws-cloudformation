@@ -25,7 +25,8 @@ class RawToCsvGlueJobStack(Stack):
 
         glue_role = iam.Role(
             scope=self,
-            id=f"{construct_id}-role",
+            id="CampusEventsGlueServiceRole",
+            role_name=f"{construct_id}-role",
             assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name(
@@ -38,10 +39,10 @@ class RawToCsvGlueJobStack(Stack):
         props.raw_bucket.grant_read_write(glue_role)
         props.staging_bucket.grant_read_write(glue_role)
 
-        glue_job_name = f"{construct_id}-xml-to-csv"
+        glue_job_name = f"{construct_id}-job"
         job = glue.CfnJob(
             scope=self,
-            id=f"{construct_id}-job",
+            id="XmlToCSVCampusEventsJob",
             name=glue_job_name,
             role=glue_role.role_arn,
             glue_version="5.0",
@@ -67,17 +68,19 @@ class RawToCsvGlueJobStack(Stack):
             },
         )
 
-        glue_db_name = "campus_events"
+        glue_db_name = f"{construct_id}-database"
         glue_db = glue.CfnDatabase(
             scope=self,
-            id=f"{construct_id}-events-database",
+            id="CampusEventsGlueDatabase",
+            database_name=glue_db_name,
             catalog_id=Aws.ACCOUNT_ID,
             database_input=glue.CfnDatabase.DatabaseInputProperty(name=glue_db_name),
         )
 
         crawler_role = iam.Role(
             scope=self,
-            id=f"{construct_id}-crawler-role",
+            id="CampusEventsCrawlerServiceRole",
+            role_name=f"{construct_id}-crawler-role",
             assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name(
@@ -118,7 +121,8 @@ class RawToCsvGlueJobStack(Stack):
 
         rule = events.Rule(
             scope=self,
-            id=f"{construct_id}-on-raw-put-rule",
+            id="CampusEventsOnRawPutEventRule",
+            rule_name=f"{construct_id}-on-raw-put-rule",
             event_pattern=events.EventPattern(
                 source=["aws.s3"],
                 detail_type=["Object Created"],
@@ -131,7 +135,8 @@ class RawToCsvGlueJobStack(Stack):
 
         eventbridge_role = iam.Role(
             scope=self,
-            id=f"{construct_id}-eventbridge-role",
+            id="CampusEventsEventBridgeRole",
+            role_name=f"{construct_id}-eventbridge-role",
             assumed_by=iam.ServicePrincipal("events.amazonaws.com"),
         )
 
