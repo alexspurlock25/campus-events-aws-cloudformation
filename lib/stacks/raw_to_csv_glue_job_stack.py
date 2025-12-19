@@ -52,7 +52,7 @@ class RawToCsvGlueJobStack(Stack):
             command=glue.CfnJob.JobCommandProperty(
                 name="glueetl",
                 python_version="3",
-                script_location=f"s3://{props.scripts_bucket.bucket_name}/scripts/transform_xml_to_csv.py",
+                script_location=f"s3://{props.scripts_bucket.bucket_name}/transform/xml_to_csv.py",
             ),
             default_arguments={
                 "--job-language": "python",
