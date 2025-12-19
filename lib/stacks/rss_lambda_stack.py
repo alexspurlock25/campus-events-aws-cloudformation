@@ -48,8 +48,9 @@ class RssToCsvLambdaStack(Stack):
         raw_bucket.grant_write(function)
 
         rule = events.Rule(
-            self,
-            f"{construct_id}-schedule-rule",
+            scope=self,
+            id="CampusEventsLambdaScheduleRule",
+            rule_name=f"{construct_id}-schedule-rule",
             schedule=events.Schedule.expression(config.rss_feed.schedule_expression),
         )
 
