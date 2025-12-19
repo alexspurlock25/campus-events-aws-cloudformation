@@ -22,7 +22,7 @@ class RssToCsvLambdaStack(Stack):
         self,
         scope: Construct,
         construct_id: str,
-        csv_bucket: s3.Bucket,
+        raw_bucket: s3.Bucket,
         config: PipelineConfig,
         **kwargs,
     ) -> None:
@@ -40,12 +40,12 @@ class RssToCsvLambdaStack(Stack):
             environment={
                 "RSS_FEED_URL": config.rss_feed.url,
                 "RSS_FEED_NAME": config.rss_feed.name,
-                "CSV_BUCKET_NAME": csv_bucket.bucket_name,
+                "CSV_BUCKET_NAME": raw_bucket.bucket_name,
             },
             timeout=Duration.seconds(30),
         )
 
-        csv_bucket.grant_write(function)
+        raw_bucket.grant_write(function)
 
         rule = events.Rule(
             self,
