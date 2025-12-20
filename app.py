@@ -6,6 +6,7 @@ from aws_cdk import App, Tags
 
 from lib.config import load_environment_config, load_projecttoml_config
 from lib.stacks import (
+    DynamoDBStack,
     RawToCsvGlueJobStack,
     RawToCsvGlueJobStackParamProps,
     RssToCsvLambdaStack,
@@ -56,6 +57,11 @@ glue_job_stack = RawToCsvGlueJobStack(
     ),
 )
 glue_job_stack.add_dependency(s3_csv_stack)
+
+
+dynamo_db_stack = DynamoDBStack(
+    scope=app, construct_id="-".join([root_construct_id, "dynamodb"])
+)
 
 Tags.of(app).add("Project", "RssPipeline")
 Tags.of(app).add("Environment", env_config.environment)
