@@ -139,6 +139,7 @@ class RawToCsvGlueJobStack(Stack):
             id="CampusEventsWorkgroup",
             name=f"{construct_id}-workgroup",
             state="ENABLED",
+            recursive_delete_option=True,
             work_group_configuration=athena.CfnWorkGroup.WorkGroupConfigurationProperty(
                 enforce_work_group_configuration=True,
                 result_configuration=athena.CfnWorkGroup.ResultConfigurationProperty(
