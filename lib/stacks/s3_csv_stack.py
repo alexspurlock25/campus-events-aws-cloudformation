@@ -9,8 +9,6 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deploy
 from constructs import Construct
 
-from lib.config import PipelineConfig
-
 
 class S3CSVStack(Stack):
     """
@@ -22,9 +20,7 @@ class S3CSVStack(Stack):
     staging_bucket: s3.Bucket
     scripts_bucket: s3.Bucket
 
-    def __init__(
-        self, scope: Construct, construct_id: str, config: PipelineConfig, **kwargs
-    ) -> None:
+    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         rule = s3.LifecycleRule(

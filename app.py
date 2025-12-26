@@ -32,11 +32,7 @@ if project_config is None:
 
 root_construct_id = "-".join([project_config.project_name, env_config.environment])
 
-s3_csv_stack = S3CSVStack(
-    scope=app,
-    construct_id="-".join([root_construct_id, "s3"]),
-    config=env_config,
-)
+s3_csv_stack = S3CSVStack(scope=app, construct_id="-".join([root_construct_id, "s3"]))
 
 lambda_stack = RssToCsvLambdaStack(
     scope=app,
