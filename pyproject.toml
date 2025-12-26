@@ -30,6 +30,8 @@ minversion = "6.0"
 addopts = "-ra -q"
 testpaths = ["tests"]
 filterwarnings = ["ignore::UserWarning"]
+log_cli = true
+log_cli_level = "INFO"
 
 [tool.poetry]
 package-mode = false
