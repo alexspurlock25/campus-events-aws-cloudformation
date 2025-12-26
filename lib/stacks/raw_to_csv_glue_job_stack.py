@@ -77,18 +77,55 @@ class RawToCsvGlueJobStack(Stack):
             database_input=glue.CfnDatabase.DatabaseInputProperty(name=glue_db_name),
         )
 
-        crawler_role = iam.Role(
+        athena_table = glue.CfnTable(
             scope=self,
-            id="CampusEventsCrawlerServiceRole",
-            role_name=f"{construct_id}-crawler-role",
-            assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
-            managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AWSGlueServiceRole"
-                )
-            ],
+            id="CampusEventsEventsTable",
+            catalog_id=Aws.ACCOUNT_ID,
+            database_name=glue_db_name,
+            table_input=glue.CfnTable.TableInputProperty(
+                name="campus_events_prod_s3_staging",
+                description="Campus events staging table with pipe delimiter",
+                table_type="EXTERNAL_TABLE",
+                parameters={
+                    "classification": "csv",
+                    "typeOfData": "file",
+                    "skip.header.line.count": "1",
+                },
+                storage_descriptor=glue.CfnTable.StorageDescriptorProperty(
+                    columns=[
+                        glue.CfnTable.ColumnProperty(
+                            name="record_source", type="string"
+                        ),
+                        glue.CfnTable.ColumnProperty(name="load_date", type="string"),
+                        glue.CfnTable.ColumnProperty(name="event_id", type="bigint"),
+                        glue.CfnTable.ColumnProperty(name="title", type="string"),
+                        glue.CfnTable.ColumnProperty(name="host", type="string"),
+                        glue.CfnTable.ColumnProperty(name="start_date", type="string"),
+                        glue.CfnTable.ColumnProperty(name="end_date", type="string"),
+                        glue.CfnTable.ColumnProperty(name="start_time", type="string"),
+                        glue.CfnTable.ColumnProperty(name="end_time", type="string"),
+                        glue.CfnTable.ColumnProperty(
+                            name="event_description", type="string"
+                        ),
+                        glue.CfnTable.ColumnProperty(name="location", type="string"),
+                        glue.CfnTable.ColumnProperty(name="link", type="string"),
+                        glue.CfnTable.ColumnProperty(name="categories", type="string"),
+                    ],
+                    location=f"s3://{props.staging_bucket.bucket_name}/",
+                    input_format="org.apache.hadoop.mapred.TextInputFormat",
+                    output_format="org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+                    serde_info=glue.CfnTable.SerdeInfoProperty(
+                        serialization_library="org.apache.hadoop.hive.serde2.OpenCSVSerde",
+                        parameters={
+                            "separatorChar": "|",
+                            "quoteChar": '"',
+                            "escapeChar": "\\",
+                        },
+                    ),
+                ),
+            ),
         )
-        props.staging_bucket.grant_read(crawler_role)
+        athena_table.add_dependency(glue_db)
 
         rule = events.Rule(
             scope=self,
@@ -146,55 +183,4 @@ class RawToCsvGlueJobStack(Stack):
                     output_location=f"s3://{props.athena_results_bucket.bucket_name}/athena-results/"
                 ),
             ),
-        )
-
-        glue_crawler = glue.CfnCrawler(
-            scope=self,
-            id="CampusEventsStagingBucketCrawler",
-            name=f"{construct_id}-stage-crawler",
-            role=crawler_role.role_arn,
-            database_name=glue_db_name,
-            targets=glue.CfnCrawler.TargetsProperty(
-                s3_targets=[
-                    glue.CfnCrawler.S3TargetProperty(
-                        path=f"s3://{props.staging_bucket.bucket_name}/"
-                    )
-                ]
-            ),
-            table_prefix="events_",
-        )
-        glue_crawler.add_dependency(glue_db)
-
-        glue_crawler_success_rule = events.Rule(
-            scope=self,
-            id="CampusEventsConvertToCsvJobSucceededRule",
-            rule_name=f"{construct_id}-job-succeeded-rule",
-            event_pattern=events.EventPattern(
-                source=["aws.glue"],
-                detail_type=["Glue Job State Change"],
-                detail={"jobName": [job.ref], "state": ["SUCCEEDED"]},
-            ),
-        )
-        glue_crawler_success_rule.node.add_dependency(job)
-
-        crawler_arn = (
-            f"arn:aws:glue:{Aws.REGION}:{Aws.ACCOUNT_ID}:crawler/{glue_crawler.name}"
-        )
-        eventbridge_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=["glue:StartCrawler"],
-                resources=[crawler_arn],
-            )
-        )
-
-        glue_crawler_success_rule.add_target(
-            targets.AwsApi(
-                service="Glue",
-                action="startCrawler",
-                parameters={"Name": glue_crawler.name},
-                policy_statement=iam.PolicyStatement(
-                    actions=["glue:StartCrawler"],
-                    resources=[crawler_arn],
-                ),
-            )
         )
