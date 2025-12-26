@@ -1,7 +1,8 @@
-import os
 import csv
+import os
 import re
 import sys
+import unicodedata
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime, timezone
 from importlib.metadata import metadata
@@ -129,10 +130,7 @@ def parse_rss(content: str) -> list[Event]:
         if end_time_match is not None:
             end_time = end_time_match.group(0)
 
-        stripped_html = BeautifulSoup(str(entry["summary"]), "html.parser").get_text(
-            strip=True
-        )
-        event_description = re.sub(r"[^\x00-\x7F]+", " ", stripped_html)
+        event_description = extract_description(entry)
 
         event = Event(
             event_id,
@@ -151,6 +149,23 @@ def parse_rss(content: str) -> list[Event]:
     return events
 
 
+def extract_description(entry) -> str:
+    html = entry.get("description", "")
+    if not html:
+        return ""
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    desc = soup.select_one(".p-description")
+    if not desc:
+        return ""
+
+    # Preserve sentence spacing, but no layout noise
+    text = desc.get_text(separator=" ", strip=True)
+
+    return unicodedata.normalize("NFKC", text)
+
+
 def get_digits_from_guid(guid: str) -> str:
     return guid.rsplit("/")[-1]
 
@@ -161,7 +176,13 @@ def events_to_csv(events: list[Event], filename: str) -> str:
     metadata_fields = ["record_source", "load_date"]
     field_names = metadata_fields + base_fields
 
-    writer = csv.DictWriter(output, fieldnames=field_names)
+    writer = csv.DictWriter(
+        output,
+        fieldnames=field_names,
+        delimiter="|",
+        quoting=csv.QUOTE_ALL,
+        escapechar="\\",
+    )
     writer.writeheader()
 
     load_date = datetime.now(tz=timezone.utc).isoformat()
