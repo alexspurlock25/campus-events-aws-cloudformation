@@ -60,6 +60,7 @@ class S3CSVStack(Stack):
             id="StagingBucket",
             bucket_name=f"{construct_id}-staging",
             removal_policy=RemovalPolicy.DESTROY,
+            event_bridge_enabled=True,
             auto_delete_objects=True,
             versioned=True,
             lifecycle_rules=[rule],
