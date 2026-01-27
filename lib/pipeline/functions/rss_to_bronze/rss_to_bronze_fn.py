@@ -14,12 +14,13 @@ s3_client = boto3.client("s3")
 
 def handler(event, context):
     """
-    Lambda hanlder to convert rss data to csv
+    Lambda handler to fetch rss data and put
+    it into data lake bronze bucket
     """
 
     rss_url = os.environ["RSS_FEED_URL"]
     rss_feed_name = os.environ["RSS_FEED_NAME"]
-    bucket_name = os.environ["CSV_BUCKET_NAME"]
+    bucket_name = os.environ["BRONZE_BUCKET_NAME"]
 
     try:
         rss_response = request.urlopen(rss_url, timeout=30)
@@ -32,7 +33,7 @@ def handler(event, context):
             Bucket=bucket_name, Key=s3_key, Body=content, ContentType="application/xml"
         )
 
-        print(f"Successfully uploaded CSV to s3://{bucket_name}/{s3_key}")
+        print(f"Successfully uploaded RSS data to s3://{bucket_name}/{s3_key}")
 
         return {
             "statusCode": 200,

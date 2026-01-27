@@ -35,7 +35,7 @@ class GlueResourcesStack(Stack):
             encryption=s3.BucketEncryption.S3_MANAGED,
         )
 
-        scripts_path = os.path.join("lib", "scripts")
+        scripts_path = os.path.join("lib", "pipeline", "scripts")
 
         s3_deploy.BucketDeployment(
             scope=self,
