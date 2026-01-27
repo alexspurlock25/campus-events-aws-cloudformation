@@ -3,8 +3,6 @@ Data lake infrastructure with Lake Formation governance.
 Manages bronze and silver S3 buckets following medallion architecture.
 """
 
-import os
-
 from aws_cdk import Duration, RemovalPolicy, Stack
 from aws_cdk import aws_s3 as s3, aws_iam as iam, CfnOutput
 from aws_cdk import aws_lakeformation as lf
@@ -72,7 +70,7 @@ class DataLakeStack(Stack):
         dl_role = iam.Role(
             scope=self,
             id="CampusEventsDataLakeRole",
-            role_name=f"{construct_id}-dl-role",
+            role_name=f"{construct_id}-role",
             assumed_by=iam.ServicePrincipal(
                 "lakeformation.amazonaws.com"
             ),  # Defines who is allowed to assume this role
