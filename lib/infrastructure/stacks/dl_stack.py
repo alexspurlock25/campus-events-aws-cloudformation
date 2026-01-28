@@ -4,8 +4,8 @@ Manages bronze and silver S3 buckets following medallion architecture.
 """
 
 from aws_cdk import Duration, RemovalPolicy, Stack
-from aws_cdk import aws_s3 as s3, aws_iam as iam, CfnOutput
-from aws_cdk import aws_lakeformation as lf
+from aws_cdk import aws_s3 as s3, aws_iam as iam, CfnOutput, aws_glue
+from aws_cdk import aws_lakeformation as lf, Aws
 from constructs import Construct
 
 
@@ -71,29 +71,42 @@ class DataLakeStack(Stack):
             scope=self,
             id="CampusEventsDataLakeRole",
             role_name=f"{construct_id}-role",
-            assumed_by=iam.ServicePrincipal(
-                "lakeformation.amazonaws.com"
+            assumed_by=iam.CompositePrincipal(
+                iam.ServicePrincipal(
+                    "lakeformation.amazonaws.com",
+                ),
+                iam.ServicePrincipal(
+                    "glue.amazonaws.com",
+                ),
             ),  # Defines who is allowed to assume this role
             description="Service role for Lake Formation data lake operations",
         )
 
-        self.bronze_bucket.grant_read_write(dl_role)
-        self.silver_bucket.grant_read_write(dl_role)
-
-        self.bronze_bucket.add_to_resource_policy(
+        # Grant Glue crawler permissions to write logs
+        dl_role.add_to_policy(
             iam.PolicyStatement(
-                sid="AllowCampusEventsDataLakeBronzeBucketAccess",
                 effect=iam.Effect.ALLOW,
-                principals=[iam.ArnPrincipal(dl_role.role_arn)],
+                actions=[
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents",
+                ],
+                resources=[
+                    f"arn:aws:logs:{Aws.REGION}:{Aws.ACCOUNT_ID}:log-group:/aws-glue/crawlers:*",
+                ],
+            )
+        )
+
+        # Grant S3 read permissions for the crawler
+        dl_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
                 actions=[
                     "s3:GetObject",
                     "s3:PutObject",
-                    "s3:DeleteObject",
-                    "s3:ListBucket",
                 ],
                 resources=[
-                    self.bronze_bucket.bucket_arn,
-                    f"{self.bronze_bucket.bucket_arn}/*",
+                    f"{self.silver_bucket.bucket_arn}/*",
                 ],
             )
         )
@@ -116,33 +129,89 @@ class DataLakeStack(Stack):
             )
         )
 
-        lf.CfnResource(
+        dl_role.apply_removal_policy(RemovalPolicy.DESTROY)
+
+        silver_db_name = f"{construct_id}-silver-db"
+        glue_db = aws_glue.CfnDatabase(
             scope=self,
-            id="CampusEventsBronzeBucketDataLakeResource",
-            resource_arn=self.bronze_bucket.bucket_arn,
-            role_arn=dl_role.role_arn,
-            use_service_linked_role=False,
+            id="CampusEventsGlueDatabase",
+            database_name=silver_db_name,
+            catalog_id=Aws.ACCOUNT_ID,
+            database_input=aws_glue.CfnDatabase.DatabaseInputProperty(
+                name=silver_db_name
+            ),
         )
 
-        lf.CfnResource(
+        lf_silver_resource = lf.CfnResource(
             scope=self,
             id="CampusEventsSilverBucketDataLakeResource",
             resource_arn=self.silver_bucket.bucket_arn,
-            role_arn=dl_role.role_arn,
-            use_service_linked_role=False,
+            use_service_linked_role=True,
+        )
+        lf_silver_resource.add_dependency(glue_db)
+
+        dl_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "glue:GetDatabase",
+                    "glue:GetTable",
+                    "glue:GetTables",
+                    "glue:CreateTable",
+                    "glue:UpdateTable",
+                    "glue:DeleteTable",
+                    "glue:BatchGetPartition",
+                    "glue:BatchCreatePartition",
+                ],
+                resources=[
+                    f"arn:aws:glue:{Aws.REGION}:{Aws.ACCOUNT_ID}:catalog",
+                    f"arn:aws:glue:{Aws.REGION}:{Aws.ACCOUNT_ID}:database/{silver_db_name}",
+                    f"arn:aws:glue:{Aws.REGION}:{Aws.ACCOUNT_ID}:table/{silver_db_name}/*",
+                ],
+            )
         )
 
-        lf.CfnDataLakeSettings(
+        silver_bucket_crawler = aws_glue.CfnCrawler(
             scope=self,
-            id="CampusEventsDataLakeSettings",
-            admins=[
-                lf.CfnDataLakeSettings.DataLakePrincipalProperty(
-                    data_lake_principal_identifier=dl_role.role_arn
+            id="SilverCrawler",
+            name=f"{construct_id}-silver-crawler",
+            role=dl_role.role_arn,
+            database_name=silver_db_name,
+            targets=aws_glue.CfnCrawler.TargetsProperty(
+                s3_targets=[
+                    aws_glue.CfnCrawler.S3TargetProperty(
+                        path=f"s3://{self.silver_bucket.bucket_name}/"
+                    )
+                ]
+            ),
+            schema_change_policy=aws_glue.CfnCrawler.SchemaChangePolicyProperty(
+                update_behavior="UPDATE_IN_DATABASE",
+                delete_behavior="LOG",
+            ),
+            recrawl_policy=aws_glue.CfnCrawler.RecrawlPolicyProperty(
+                recrawl_behavior="CRAWL_EVERYTHING"
+            ),
+        )
+        silver_bucket_crawler.add_dependency(glue_db)
+
+        lf_db_permissions = lf.CfnPermissions(
+            scope=self,
+            id="CampusEventsSilverDbPermissions",
+            data_lake_principal=lf.CfnPermissions.DataLakePrincipalProperty(
+                data_lake_principal_identifier=dl_role.role_arn
+            ),
+            resource=lf.CfnPermissions.ResourceProperty(
+                database_resource=lf.CfnPermissions.DatabaseResourceProperty(
+                    name=silver_db_name
                 )
+            ),
+            permissions=[
+                "CREATE_TABLE",
+                "ALTER",
+                "DESCRIBE",
             ],
         )
-
-        dl_role.apply_removal_policy(RemovalPolicy.DESTROY)
+        lf_db_permissions.add_dependency(glue_db)
 
         CfnOutput(
             scope=self,
