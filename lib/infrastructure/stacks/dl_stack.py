@@ -69,7 +69,7 @@ class DataLakeStack(Stack):
         # let lake formation have access to s3 buckets
         dl_role = iam.Role(
             scope=self,
-            id="CampusEventsDataLakeRole",
+            id="DataLakeRole",
             role_name=f"{construct_id}-role",
             assumed_by=iam.CompositePrincipal(
                 iam.ServicePrincipal(
@@ -113,7 +113,7 @@ class DataLakeStack(Stack):
 
         self.silver_bucket.add_to_resource_policy(
             iam.PolicyStatement(
-                sid="AllowCampusEventsDataLakeSilverBucketAccess",
+                sid="AllowDataLakeSilverBucketFullCRUDAccess",
                 effect=iam.Effect.ALLOW,
                 principals=[iam.ArnPrincipal(dl_role.role_arn)],
                 actions=[
@@ -134,7 +134,7 @@ class DataLakeStack(Stack):
         silver_db_name = f"{construct_id}-silver-db"
         glue_db = aws_glue.CfnDatabase(
             scope=self,
-            id="CampusEventsGlueDatabase",
+            id="SilverGlueDatabase",
             database_name=silver_db_name,
             catalog_id=Aws.ACCOUNT_ID,
             database_input=aws_glue.CfnDatabase.DatabaseInputProperty(
@@ -144,9 +144,10 @@ class DataLakeStack(Stack):
 
         lf_silver_resource = lf.CfnResource(
             scope=self,
-            id="CampusEventsSilverBucketDataLakeResource",
+            id="SilverBucketDataLakeResource",
             resource_arn=self.silver_bucket.bucket_arn,
-            use_service_linked_role=True,
+            role_arn=dl_role.role_arn,
+            use_service_linked_role=False,
         )
         lf_silver_resource.add_dependency(glue_db)
 
@@ -196,7 +197,7 @@ class DataLakeStack(Stack):
 
         lf_db_permissions = lf.CfnPermissions(
             scope=self,
-            id="CampusEventsSilverDbPermissions",
+            id="SilverDataLakeDatabasePermissions",
             data_lake_principal=lf.CfnPermissions.DataLakePrincipalProperty(
                 data_lake_principal_identifier=dl_role.role_arn
             ),
@@ -212,11 +213,3 @@ class DataLakeStack(Stack):
             ],
         )
         lf_db_permissions.add_dependency(glue_db)
-
-        CfnOutput(
-            scope=self,
-            id="CampusEventsDataLakeRoleArn",
-            value=dl_role.role_arn,
-            export_name=f"{construct_id}-dl-role-arn",
-            description="Lake Formation service role ARN for cross-stack access",
-        )
