@@ -2,11 +2,11 @@ import csv
 import os
 import re
 import sys
+from typing import Dict, Any, List
 import unicodedata
-from dataclasses import asdict, dataclass, fields
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from importlib.metadata import metadata
-from io import StringIO
+import pandas as pd
 
 import boto3
 import feedparser
@@ -69,7 +69,6 @@ class Event:
     event_description: str
     location: str
     link: str
-    categories: list[str]
 
     def to_dict(self):
         return {
@@ -83,8 +82,28 @@ class Event:
             "event_description": self.event_description,
             "location": self.location,
             "external_link": self.link,
-            "categories": self.categories,
         }
+
+
+def extract_description(entry) -> str:
+    html = entry.get("description", "")
+    if not html:
+        return ""
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    desc = soup.select_one(".p-description")
+    if not desc:
+        return ""
+
+    # Preserve sentence spacing, but no layout noise
+    text = desc.get_text(separator=" ", strip=True)
+
+    return unicodedata.normalize("NFKC", text)
+
+
+def get_digits_from_guid(guid: str) -> str:
+    return guid.rsplit("/")[-1]
 
 
 def parse_rss(content: str) -> list[Event]:
@@ -92,10 +111,6 @@ def parse_rss(content: str) -> list[Event]:
     feed = feedparser.parse(content)
 
     for entry in feed.entries:
-        categories: list[str] = []
-        for tag in entry.tags:
-            categories.append(str(tag.term))
-
         title = str(entry["title"]).strip()
         event_id = get_digits_from_guid(guid=str(entry["guid"]).strip())
         host = ""
@@ -143,58 +158,47 @@ def parse_rss(content: str) -> list[Event]:
             event_description,
             location,
             link,
-            categories,
         )
         events.append(event)
     return events
 
 
-def extract_description(entry) -> str:
-    html = entry.get("description", "")
-    if not html:
-        return ""
-
-    soup = BeautifulSoup(html, "html.parser")
-
-    desc = soup.select_one(".p-description")
-    if not desc:
-        return ""
-
-    # Preserve sentence spacing, but no layout noise
-    text = desc.get_text(separator=" ", strip=True)
-
-    return unicodedata.normalize("NFKC", text)
-
-
-def get_digits_from_guid(guid: str) -> str:
-    return guid.rsplit("/")[-1]
-
-
-def events_to_csv(events: list[Event], filename: str) -> str:
-    output = StringIO()
-    base_fields = [f.name for f in fields(Event)]
-    metadata_fields = ["record_source", "load_date"]
-    field_names = metadata_fields + base_fields
-
-    writer = csv.DictWriter(
-        output,
-        fieldnames=field_names,
-        delimiter="|",
-        quoting=csv.QUOTE_ALL,
-        escapechar="\\",
-    )
-    writer.writeheader()
-
+def events_to_parquet(events: list[Event], key: str) -> pd.DataFrame:
     load_date = datetime.now(tz=timezone.utc).isoformat()
+    rows: List[Dict[str, Any]] = []
+    _, filename = key.rsplit("/", 1)
 
     for event in events:
-        row = asdict(event)
+        row: Dict[str, Any] = event.to_dict()
         row["record_source"] = filename
         row["load_date"] = load_date
 
-        writer.writerow(row)
+        if event.start_date:
+            date_parts = event.start_date.split("-")
+            row["year"] = int(date_parts[0])
+            row["month"] = int(date_parts[1])
+            row["day"] = int(date_parts[2])
+        else:
+            today = datetime.now(tz=timezone.utc)
+            row["year"] = today.year
+            row["month"] = today.month
+            row["day"] = today.day
 
-    return output.getvalue()
+        row["campus"] = extract_campus(key)
+
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+    return df
+
+
+def extract_campus(key: str) -> str:
+    campus_mapping = {"university-of-cincinnati": "cincinnati"}
+    for key, value in campus_mapping.items():
+        if key in key.lower():
+            return value
+
+    return "unknown"
 
 
 def get_raw_keys() -> list[str]:
@@ -212,6 +216,7 @@ def main():
     raw_keys = get_raw_keys()
     if not raw_keys:
         print("no files to process!")
+        return
 
     for key in raw_keys:
         if "/processed/" in key:
@@ -237,16 +242,17 @@ def main():
             raw_bytes = obj["Body"].read()
             xml_content = raw_bytes.decode("utf-8", errors="replace")
             events = parse_rss(content=xml_content)
-            csv_events = events_to_csv(events=events, filename=filename)
+            df = events_to_parquet(events=events, key=key)
 
             # step 1: upload csv to staging
-            s3_client.put_object(
-                Bucket=args.target_bucket_name,
-                Key=f"{prefix}/{base}.csv",
-                Body=csv_events.encode("utf-8"),
-                ContentType="text/csv",
+            df.to_parquet(
+                path=f"s3://{args.target_bucket_name}/",
+                partition_cols=["campus", "year", "month", "day"],
+                compression="snappy",
+                index=False,
+                engine="pyarrow",
             )
-            print(f"wrote s3://{args.target_bucket_name}/{prefix}/{base}.csv")
+            print(f"wrote partitioned parquet to s3://{args.target_bucket_name}/")
 
             # step 2: copy csv to /processed/ in raw bucket
             dest_key = f"{prefix}/processed/{filename}"
