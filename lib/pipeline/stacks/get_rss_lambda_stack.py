@@ -27,7 +27,9 @@ class GetRssLambdaStack(Stack):
         config: PipelineConfig,
         **kwargs,
     ) -> None:
-        super().__init__(scope, construct_id, stack_name="GetRssLambda", **kwargs)
+        super().__init__(
+            scope, construct_id, stack_name="CampusEventsGetRssLambda", **kwargs
+        )
 
         lambda_dir = os.path.join("lib", "pipeline", "functions", "rss_to_bronze")
 
