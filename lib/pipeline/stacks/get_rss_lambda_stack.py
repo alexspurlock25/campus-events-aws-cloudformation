@@ -28,14 +28,17 @@ class GetRssLambdaStack(Stack):
         **kwargs,
     ) -> None:
         super().__init__(
-            scope, construct_id, stack_name="CampusEventsGetRssLambda", **kwargs
+            scope,
+            construct_id,
+            stack_name="CampusEventsGetRssFeedLambdaResources",
+            **kwargs,
         )
 
         lambda_dir = os.path.join("lib", "pipeline", "functions", "rss_to_bronze")
 
         function = Function(
             scope=self,
-            id="FetchRssFeedFn",
+            id="GetRssFeedLambda",
             function_name=f"{construct_id}-fn",
             runtime=Runtime.PYTHON_3_14,
             handler="rss_to_bronze_fn.handler",
@@ -52,7 +55,7 @@ class GetRssLambdaStack(Stack):
 
         rule = events.Rule(
             scope=self,
-            id="CampusEventsLambdaScheduleRule",
+            id="GetRssFeedLambdaScheduleRule",
             rule_name=f"{construct_id}-schedule-rule",
             schedule=events.Schedule.expression(config.rss_feed.schedule_expression),
         )
