@@ -4,7 +4,7 @@ Manages bronze and silver S3 buckets following medallion architecture.
 """
 
 from aws_cdk import Duration, RemovalPolicy, Stack
-from aws_cdk import aws_s3 as s3, aws_iam as iam, CfnOutput, aws_glue
+from aws_cdk import aws_s3 as s3, aws_iam as iam, aws_glue
 from aws_cdk import aws_lakeformation as lf, Aws
 from constructs import Construct
 
