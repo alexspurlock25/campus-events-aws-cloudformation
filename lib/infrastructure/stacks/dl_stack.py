@@ -121,9 +121,11 @@ class DataLakeStack(Stack):
                     "s3:PutObject",
                     "s3:DeleteObject",
                     "s3:ListBucket",
+                    "s3:DeleteObject",
+                    "s3:GetBucketLocation",
                 ],
                 resources=[
-                    self.silver_bucket.bucket_arn,
+                    f"{self.silver_bucket.bucket_arn}",
                     f"{self.silver_bucket.bucket_arn}/*",
                 ],
             )
@@ -195,6 +197,18 @@ class DataLakeStack(Stack):
         )
         silver_bucket_crawler.add_dependency(glue_db)
 
+        # Add this before registering resources
+        lf_settings = lf.CfnDataLakeSettings(
+            scope=self,
+            id="LakeFormationSettings",
+            admins=[
+                lf.CfnDataLakeSettings.DataLakePrincipalProperty(
+                    data_lake_principal_identifier=dl_role.role_arn
+                )
+            ],
+            trusted_resource_owners=[],
+        )
+
         lf_db_permissions = lf.CfnPermissions(
             scope=self,
             id="SilverDataLakeDatabasePermissions",
@@ -206,10 +220,6 @@ class DataLakeStack(Stack):
                     name=silver_db_name
                 )
             ),
-            permissions=[
-                "CREATE_TABLE",
-                "ALTER",
-                "DESCRIBE",
-            ],
+            permissions=["ALL"],
         )
         lf_db_permissions.add_dependency(glue_db)
