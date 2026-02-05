@@ -22,7 +22,7 @@ app = App()
 
 env_name = (
     app.node.try_get_context("environment")
-    or "prod"  # should be dev if env is missing in the real world
+    or "prod"  # should be dev if environment value is missing in the real world
 )
 env_config = load_environment_config(environment=env_name)
 project_config = load_projecttoml_config()
@@ -60,19 +60,19 @@ lambda_stack = GetRssLambdaStack(
 )
 lambda_stack.add_dependency(dl_stack)
 
-glue_job_stack = BronzeToSilverGlueJobStack(
-    scope=app,
-    construct_id="-".join([root_construct_id, "bronze-to-silver-glue"]),
-    props=BronzeToSilverGlueJobStackParamProps(
-        bronze_bucket=dl_stack.bronze_bucket,
-        silver_bucket=dl_stack.silver_bucket,
-        athena_results_bucket=analytics_stack.athena_results_bucket,
-        scripts_bucket=glue_scripts_stack.scripts_bucket,
-    ),
-)
-glue_job_stack.add_dependency(dl_stack)
-glue_job_stack.add_dependency(analytics_stack)
-glue_job_stack.add_dependency(glue_scripts_stack)
+# glue_job_stack = BronzeToSilverGlueJobStack(
+#     scope=app,
+#     construct_id="-".join([root_construct_id, "bronze-to-silver-glue"]),
+#     props=BronzeToSilverGlueJobStackParamProps(
+#         bronze_bucket=dl_stack.bronze_bucket,
+#         silver_bucket=dl_stack.silver_bucket,
+#         athena_results_bucket=analytics_stack.athena_results_bucket,
+#         scripts_bucket=glue_scripts_stack.scripts_bucket,
+#     ),
+# )
+# glue_job_stack.add_dependency(dl_stack)
+# glue_job_stack.add_dependency(analytics_stack)
+# glue_job_stack.add_dependency(glue_scripts_stack)
 
 # dynamo_db_stack = DynamoDBStack(
 #     scope=app,
@@ -80,8 +80,8 @@ glue_job_stack.add_dependency(glue_scripts_stack)
 #     props=DynamoDBStackParamProps(staging_bucket=s3_csv_stack.staging_bucket),
 # )
 
-Tags.of(app).add("Project", "RssPipeline")
-Tags.of(app).add("Environment", env_config.environment)
-Tags.of(app).add("ManagedBy", "CDK")
+# Tags.of(app).add("Project", "CampusEventsRssFeedDataPipeline")
+# Tags.of(app).add("Environment", env_config.environment)
+# Tags.of(app).add("ManagedBy", "CDK")
 
 app.synth()
