@@ -8,7 +8,6 @@ import os
 from aws_cdk import RemovalPolicy, Stack
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deploy
-from aws_cdk import aws_lakeformation as lf
 from constructs import Construct
 
 
@@ -35,7 +34,7 @@ class GlueResourcesStack(Stack):
             encryption=s3.BucketEncryption.S3_MANAGED,
         )
 
-        scripts_path = os.path.join("lib", "pipeline", "jobs")
+        scripts_path = os.path.join("lib", "pipeline", "scripts")
 
         s3_deploy.BucketDeployment(
             scope=self,

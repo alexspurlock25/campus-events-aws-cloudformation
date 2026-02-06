@@ -3,8 +3,8 @@ Analytics infrastructure stack.
 Manages S3 bucket for Athena query results and analytics outputs.
 """
 
-from aws_cdk import aws_athena as athena
 from aws_cdk import RemovalPolicy, Stack
+from aws_cdk import aws_athena as athena
 from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
