@@ -5,26 +5,25 @@ from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_glue as glue
 from aws_cdk import aws_iam as iam
-from aws_cdk import aws_lakeformation as lf
 from aws_cdk.aws_s3 import IBucket
 
 
 @dataclass
-class BronzeToSilverGlueJobStackParamProps:
+class BronzeToSilverWorkflowStackProps:
     bronze_bucket: IBucket
     silver_bucket: IBucket
     athena_results_bucket: IBucket
     scripts_bucket: IBucket
 
 
-class BronzeToSilverGlueJobStack(Stack):
+class BronzeToSilverWorkflowStack(Stack):
     def __init__(
-        self, scope, construct_id, props: BronzeToSilverGlueJobStackParamProps, **kwargs
+        self, scope, construct_id, props: BronzeToSilverWorkflowStackProps, **kwargs
     ) -> None:
         super().__init__(
             scope,
             construct_id,
-            stack_name="CampusEventsBronzeToSilverJobResources",
+            stack_name="CampusEventsBronzeToSilverWorkflow",
             **kwargs,
         )
 
@@ -57,10 +56,9 @@ class BronzeToSilverGlueJobStack(Stack):
             max_retries=0,
             command=glue.CfnJob.JobCommandProperty(
                 name="glueetl",
-                script_location=f"s3://{props.scripts_bucket.bucket_name}/xml_to_parquet.py",
+                script_location=f"s3://{props.scripts_bucket.bucket_name}/glue/xml_to_parquet.py",
             ),
             default_arguments={
-                "--job-language": "python",
                 "--TempDir": f"s3://{props.bronze_bucket.bucket_name}/xml_to_parquet_logs/",
                 "--continuous-log-logGroup": f"/aws-glue/jobs/{glue_job_name}",
                 "--enable-spark-ui": "true",
@@ -74,8 +72,8 @@ class BronzeToSilverGlueJobStack(Stack):
 
         rule = events.Rule(
             scope=self,
-            id="OnBronzeNewObjectEventRule",
-            rule_name=f"{construct_id}-on-bronze-put-rule",
+            id="BronzeXmlObjectCreatedRule",
+            rule_name=f"{construct_id}-xml-object-created",
             event_pattern=events.EventPattern(
                 source=["aws.s3"],
                 detail_type=["Object Created"],

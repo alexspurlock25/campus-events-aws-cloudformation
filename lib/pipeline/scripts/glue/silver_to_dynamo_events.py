@@ -1,15 +1,14 @@
-import csv
 import os
 import re
 import sys
-from typing import Dict, Any, List
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import pandas as pd
+from typing import Any, Dict, List
 
 import boto3
 import feedparser
+import pandas as pd
 from bs4 import BeautifulSoup
 
 try:

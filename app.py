@@ -2,20 +2,20 @@
 # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 import sys
 
-from aws_cdk import App, Tags
+from aws_cdk import App
 
 from lib.config import load_environment_config, load_projecttoml_config
 from lib.infrastructure.stacks import (
+    AnalyticsResourcesStack,
     DataLakeStack,
     GlueResourcesStack,
-    AnalyticsResourcesStack,
 )
 from lib.pipeline.stacks import (
-    GetRssLambdaStack,
-    BronzeToSilverGlueJobStack,
-    BronzeToSilverGlueJobStackParamProps,
+    BronzeToSilverWorkflowStack,
+    BronzeToSilverWorkflowStackProps,
     DynamoDBStack,
-    DynamoDBStackParamProps,
+    DynamoDBStackProps,
+    GetRssLambdaStack,
 )
 
 app = App()
@@ -60,28 +60,25 @@ lambda_stack = GetRssLambdaStack(
 )
 lambda_stack.add_dependency(dl_stack)
 
-# glue_job_stack = BronzeToSilverGlueJobStack(
-#     scope=app,
-#     construct_id="-".join([root_construct_id, "bronze-to-silver-glue"]),
-#     props=BronzeToSilverGlueJobStackParamProps(
-#         bronze_bucket=dl_stack.bronze_bucket,
-#         silver_bucket=dl_stack.silver_bucket,
-#         athena_results_bucket=analytics_stack.athena_results_bucket,
-#         scripts_bucket=glue_scripts_stack.scripts_bucket,
-#     ),
-# )
-# glue_job_stack.add_dependency(dl_stack)
-# glue_job_stack.add_dependency(analytics_stack)
-# glue_job_stack.add_dependency(glue_scripts_stack)
+glue_job_stack = BronzeToSilverWorkflowStack(
+    scope=app,
+    construct_id="-".join([root_construct_id, "bronze-to-silver-workflow"]),
+    props=BronzeToSilverWorkflowStackProps(
+        bronze_bucket=dl_stack.bronze_bucket,
+        silver_bucket=dl_stack.silver_bucket,
+        athena_results_bucket=analytics_stack.athena_results_bucket,
+        scripts_bucket=glue_scripts_stack.scripts_bucket,
+    ),
+)
+glue_job_stack.add_dependency(dl_stack)
+glue_job_stack.add_dependency(analytics_stack)
+glue_job_stack.add_dependency(glue_scripts_stack)
 
 # dynamo_db_stack = DynamoDBStack(
 #     scope=app,
 #     construct_id="-".join([root_construct_id, "dynamodb"]),
-#     props=DynamoDBStackParamProps(staging_bucket=s3_csv_stack.staging_bucket),
+#     props=DynamoDBStackProps(silver_bucket=dl_stack.silver_bucket),
 # )
-
-# Tags.of(app).add("Project", "CampusEventsRssFeedDataPipeline")
-# Tags.of(app).add("Environment", env_config.environment)
-# Tags.of(app).add("ManagedBy", "CDK")
+# dynamo_db_stack.add_dependency(dl_stack)
 
 app.synth()
