@@ -13,9 +13,9 @@ from lib.infrastructure.stacks import (
 from lib.pipeline.stacks import (
     BronzeToSilverWorkflowStack,
     BronzeToSilverWorkflowStackProps,
-    DynamoDBStack,
-    DynamoDBStackProps,
     GetRssLambdaStack,
+    SilverToDynamoEventsWorkflowStack,
+    SilverToDynamoEventsWorkflowStackProps,
 )
 
 app = App()
@@ -62,7 +62,7 @@ lambda_stack.add_dependency(dl_stack)
 
 glue_job_stack = BronzeToSilverWorkflowStack(
     scope=app,
-    construct_id="-".join([root_construct_id, "bronze-to-silver-workflow"]),
+    construct_id="-".join([root_construct_id, "bronze-to-silver-wf"]),
     props=BronzeToSilverWorkflowStackProps(
         bronze_bucket=dl_stack.bronze_bucket,
         silver_bucket=dl_stack.silver_bucket,
@@ -74,11 +74,15 @@ glue_job_stack.add_dependency(dl_stack)
 glue_job_stack.add_dependency(analytics_stack)
 glue_job_stack.add_dependency(glue_scripts_stack)
 
-# dynamo_db_stack = DynamoDBStack(
-#     scope=app,
-#     construct_id="-".join([root_construct_id, "dynamodb"]),
-#     props=DynamoDBStackProps(silver_bucket=dl_stack.silver_bucket),
-# )
-# dynamo_db_stack.add_dependency(dl_stack)
+dynamo_db_stack = SilverToDynamoEventsWorkflowStack(
+    scope=app,
+    construct_id="-".join([root_construct_id, "silver-to-dynamo-events-wf"]),
+    props=SilverToDynamoEventsWorkflowStackProps(
+        bronze_bucket=dl_stack.bronze_bucket,
+        silver_bucket=dl_stack.silver_bucket,
+        scripts_bucket=glue_scripts_stack.scripts_bucket,
+    ),
+)
+dynamo_db_stack.add_dependency(dl_stack)
 
 app.synth()

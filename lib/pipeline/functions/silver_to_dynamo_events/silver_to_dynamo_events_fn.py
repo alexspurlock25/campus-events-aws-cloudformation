@@ -2,11 +2,9 @@ import ast
 import csv
 import json
 import os
-from datetime import datetime
 from io import StringIO
 from typing import Any
 
-# boto3==1.42.5
 import boto3
 
 s3_client = boto3.client("s3")
