@@ -4,8 +4,10 @@ from dataclasses import dataclass
 
 import boto3
 from awsglue.context import GlueContext
+from awsglue.dynamicframe import DynamicFrame
 from pyspark.context import SparkContext
 from pyspark.sql.functions import col, desc, row_number
+from pyspark.sql.types import StringType, StructField, StructType
 from pyspark.sql.window import Window
 
 try:
@@ -14,6 +16,24 @@ except Exception:
     getResolvedOptions = None
 
 s3_client = boto3.client("s3")
+
+EVENT_SCHEMA = StructType(
+    [
+        StructField("event_id", StringType(), False),
+        StructField("title", StringType(), False),
+        StructField("host", StringType(), False),
+        StructField("start_date", StringType(), False),
+        StructField("end_date", StringType(), False),
+        StructField("start_time", StringType(), False),
+        StructField("end_time", StringType(), False),
+        StructField("event_description", StringType(), True),
+        StructField("location", StringType(), True),
+        StructField("external_link", StringType(), False),
+        StructField("campus", StringType(), True),
+        StructField("record_source", StringType(), True),
+        StructField("load_date", StringType(), False),
+    ]
+)
 
 
 @dataclass
@@ -52,19 +72,20 @@ spark = glue_context.spark_session
 
 def main():
     window = Window.partitionBy("event_id").orderBy(desc("load_date"))
-    df = spark.read.parquet(args.silver_bucket_name)
+    df = spark.read.schema(EVENT_SCHEMA).parquet(f"s3://{args.silver_bucket_name}/")
     events_df = (
         df.select(
             col("event_id"),
             col("title"),
             col("host"),
             col("start_date"),
-            col("start_time"),
             col("end_date"),
+            col("start_time"),
             col("end_time"),
+            col("event_description"),
             col("location"),
-            col("link"),
-            col("categories"),
+            col("external_link"),
+            col("campus"),
             col("record_source"),
             col("load_date"),
         )
@@ -73,9 +94,9 @@ def main():
         .drop("rn")
     )
 
-    dyf = glue_context.create_dynamic_frame.from_df(
-        events_df, glue_context, "events_dyf"
-    )
+    events_df = spark.createDataFrame(events_df.rdd, schema=EVENT_SCHEMA)
+
+    dyf = DynamicFrame.fromDF(events_df, glue_context, "events_dyf")
 
     glue_context.write_dynamic_frame.from_options(
         frame=dyf,

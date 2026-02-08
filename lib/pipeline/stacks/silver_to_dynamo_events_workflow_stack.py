@@ -81,6 +81,8 @@ class SilverToDynamoEventsWorkflowStack(Stack):
             ),
         )
 
+        events_table.grant_read_write_data(glue_role)
+
         glue_job_name = f"{construct_id}-job"
         job = aws_glue.CfnJob(
             scope=self,
