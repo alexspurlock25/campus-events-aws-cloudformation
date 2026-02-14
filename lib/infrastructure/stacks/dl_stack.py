@@ -3,9 +3,16 @@ Data lake infrastructure with Lake Formation governance.
 Manages bronze and silver S3 buckets following medallion architecture.
 """
 
-from aws_cdk import Duration, RemovalPolicy, Stack
-from aws_cdk import aws_s3, aws_iam, aws_glue
-from aws_cdk import aws_lakeformation, Aws
+from aws_cdk import (
+    Aws,
+    Duration,
+    RemovalPolicy,
+    Stack,
+    aws_glue,
+    aws_iam,
+    aws_lakeformation,
+    aws_s3,
+)
 from constructs import Construct
 
 
