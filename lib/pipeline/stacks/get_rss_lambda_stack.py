@@ -34,7 +34,7 @@ class GetRssLambdaStack(Stack):
             **kwargs,
         )
 
-        lambda_dir = os.path.join("lib", "pipeline", "functions", "rss_to_bronze")
+        lambda_dir = os.path.join("lib", "pipeline", "functions")
 
         function = Function(
             scope=self,
@@ -42,7 +42,7 @@ class GetRssLambdaStack(Stack):
             function_name=f"{construct_id}-fn",
             runtime=Runtime.PYTHON_3_14,
             handler="rss_to_bronze_fn.handler",
-            code=Code.from_docker_build(path=lambda_dir, file="Dockerfile"),
+            code=Code.from_asset(path=lambda_dir),
             environment={
                 "RSS_FEED_URL": config.rss_feed.url,
                 "RSS_FEED_NAME": config.rss_feed.name,
