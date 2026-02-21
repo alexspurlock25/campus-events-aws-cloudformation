@@ -1,14 +1,19 @@
 import os
+from dataclasses import dataclass
 
 from aws_cdk import Duration, Stack
-from aws_cdk import aws_events as events
-from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_s3 as s3
 from aws_cdk.aws_lambda import Code, Function, Runtime
 from constructs import Construct
 
-from lib.config import PipelineConfig
+from lib.config import RssFeedConfig
+
+
+@dataclass
+class GetRssLambdaStackProps:
+    bronze_bucket: s3.Bucket
+    config: RssFeedConfig
 
 
 class GetRssLambdaStack(Stack):
@@ -17,14 +22,13 @@ class GetRssLambdaStack(Stack):
     data and putting that data into data lake bronze zone
     """
 
-    rss_function: lambda_.Function
+    get_rss_function: lambda_.Function
 
     def __init__(
         self,
         scope: Construct,
         construct_id: str,
-        bronze_bucket: s3.Bucket,
-        config: PipelineConfig,
+        props: GetRssLambdaStackProps,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -36,30 +40,18 @@ class GetRssLambdaStack(Stack):
 
         lambda_dir = os.path.join("lib", "pipeline", "functions")
 
-        function = Function(
+        self.get_rss_function = Function(
             scope=self,
             id="GetRssFeedLambda",
-            function_name=f"{construct_id}-fn",
+            function_name=f"{construct_id}-lambda-fn",
             runtime=Runtime.PYTHON_3_14,
             handler="rss_to_bronze_fn.handler",
             code=Code.from_asset(path=lambda_dir),
             environment={
-                "RSS_FEED_URL": config.rss_feed.url,
-                "RSS_FEED_NAME": config.rss_feed.name,
-                "BRONZE_BUCKET_NAME": bronze_bucket.bucket_name,
+                "RSS_FEED_URL": props.config.url,
+                "BRONZE_BUCKET_NAME": props.bronze_bucket.bucket_name,
             },
             timeout=Duration.seconds(30),
         )
 
-        bronze_bucket.grant_write(function)
-
-        rule = events.Rule(
-            scope=self,
-            id="GetRssFeedLambdaScheduleRule",
-            rule_name=f"{construct_id}-schedule-rule",
-            schedule=events.Schedule.expression(config.rss_feed.schedule_expression),
-        )
-
-        rule.add_target(targets.LambdaFunction(function))
-
-        self.rss_function = function
+        props.bronze_bucket.grant_write(self.get_rss_function)
