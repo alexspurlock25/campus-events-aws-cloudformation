@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
-import sys
-
 from aws_cdk import App
 
 from lib.config import load_environment_config, load_projecttoml_config
@@ -33,7 +31,6 @@ lf_stack.add_dependency(dl_stack)
 glue_scripts_stack = ScriptsResourcesStack(
     scope=app, construct_id=f"{app_config.project_name}-script-resources"
 )
-analytics_stack.add_dependency(dl_stack)
 
 lambda_stack = GetRssLambdaStack(
     scope=app,
@@ -58,15 +55,30 @@ bronze_to_silver_wf = BronzeToSilverWorkflowStack(
 bronze_to_silver_wf.add_dependency(dl_stack)
 bronze_to_silver_wf.add_dependency(glue_scripts_stack)
 
-dynamo_db_stack = SilverToDynamoEventsWorkflowStack(
-    scope=app,
-    construct_id="-".join([root_construct_id, "silver-to-dynamo-events-wf"]),
-    props=SilverToDynamoEventsWorkflowStackProps(
-        bronze_bucket=dl_stack.bronze_bucket,
-        silver_bucket=dl_stack.silver_bucket,
-        scripts_bucket=glue_scripts_stack.scripts_bucket,
-    ),
-)
-dynamo_db_stack.add_dependency(dl_stack)
+# silver_to_dynamo_wf = SilverToDynamoEventsWorkflowStack(
+#     scope=app,
+#     construct_id="-".join([root_construct_id, "silver-to-dynamo-events-wf"]),
+#     props=SilverToDynamoEventsWorkflowStackProps(
+#         bronze_bucket=dl_stack.bronze_bucket,
+#         silver_bucket=dl_stack.silver_bucket,
+#         scripts_bucket=glue_scripts_stack.scripts_bucket,
+#     ),
+# )
+# silver_to_dynamo_wf.add_dependency(dl_stack)
+# bronze_to_silver_wf.add_dependency(glue_scripts_stack)
+
+# orchestrator_stack = RssPipelineOrchestratorStack(
+#     scope=app,
+#     construct_id="-".join([root_construct_id, "orchestrator"]),
+#     props=RssPipelineOrchestratorStackProps(
+#         config=env_config,
+#         fetch_rss_lambda=lambda_stack.rss_function,
+#         bronze_to_silver_state_machine=bronze_to_silver_wf.state_machine,
+#         silver_to_dynamo_state_machine=silver_to_dynamo_wf.state_machine,
+#     ),
+# )
+# orchestrator_stack.add_dependency(lambda_stack)
+# orchestrator_stack.add_dependency(bronze_to_silver_wf)
+# orchestrator_stack.add_dependency(silver_to_dynamo_wf)
 
 app.synth()
