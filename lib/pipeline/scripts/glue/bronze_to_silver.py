@@ -12,20 +12,14 @@ import feedparser
 import pandas as pd
 from awsglue.context import GlueContext
 from awsglue.job import Job
+from awsglue.utils import getResolvedOptions
 from bs4 import BeautifulSoup
 from feedparser import FeedParserDict
-
-# from awsglue.transforms import *
-# from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from pyspark.sql import Row
 from pyspark.sql.types import IntegerType, StringType, StructField, StructType
 
-try:
-    from awsglue.utils import getResolvedOptions
-except Exception:
-    getResolvedOptions = None
-
+s3_client = boto3.client("s3")
 spark_context = SparkContext()
 glue_context = GlueContext(spark_context)
 spark_session = glue_context.spark_session
@@ -52,6 +46,7 @@ class Args:
     """
 
     job_name: str
+    source_key: str
     source_bucket_name: str
     target_bucket_name: str
 
@@ -88,32 +83,24 @@ class Event:
         }
 
 
-if getResolvedOptions:
-    _args = getResolvedOptions(
-        sys.argv,
-        [
-            "JOB_NAME",
-            "SOURCE_BUCKET_NAME",
-            "TARGET_BUCKET_NAME",
-        ],
-    )
+_args = getResolvedOptions(
+    sys.argv,
+    [
+        "JOB_NAME",
+        "SOURCE_KEY",
+        "SOURCE_BUCKET_NAME",
+        "TARGET_BUCKET_NAME",
+    ],
+)
 
-    args = Args(
-        job_name=_args["JOB_NAME"],
-        source_bucket_name=_args["SOURCE_BUCKET_NAME"],
-        target_bucket_name=_args["TARGET_BUCKET_NAME"],
-    )
+args = Args(
+    job_name=_args["JOB_NAME"],
+    source_key=_args["SOURCE_KEY"],
+    source_bucket_name=_args["SOURCE_BUCKET_NAME"],
+    target_bucket_name=_args["TARGET_BUCKET_NAME"],
+)
 
-    job.init(args.job_name, _args)
-else:
-    args = Args(
-        job_name=os.environ.get("JOB_NAME", "local-job"),
-        source_bucket_name=os.environ.get("SOURCE_BUCKET_NAME", "test-source-bucket"),
-        target_bucket_name=os.environ.get("TARGET_BUCKET_NAME", "test-target-bucket"),
-    )
-
-# After imports, before s3_client creation
-IS_LOCAL = args.job_name.startswith("local")
+job.init(args.job_name, _args)
 
 #########################
 # Helper functions
@@ -121,58 +108,6 @@ IS_LOCAL = args.job_name.startswith("local")
 
 date_pattern = r"(\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{4})"
 time_pattern = r"(\d{2}:\d{2}:\d{2})"
-
-
-def create_s3_client():
-    if IS_LOCAL:
-        logger.info("Running in LOCAL mode - using filesystem instead of S3")
-
-        class LocalS3Client:
-            def get_paginator(self, operation):
-                class Paginator:
-                    def paginate(self, Bucket):
-                        import glob
-
-                        files = glob.glob(f"{Bucket}/**/*.xml", recursive=True)
-                        keys = [f.replace(f"{Bucket}/", "") for f in files]
-                        yield {
-                            "Contents": [
-                                {"Key": k} for k in keys if not k.endswith("/")
-                            ]
-                        }
-
-                return Paginator()
-
-            def get_object(self, Bucket, Key):
-                filepath = f"{Bucket}/{Key}"
-                with open(filepath, "rb") as f:
-                    body_content = f.read()
-
-                class Body:
-                    def __init__(self, content):
-                        self.content = content
-
-                    def read(self):
-                        return self.content
-
-                return {"Body": Body(body_content)}
-
-            def copy_object(self, Bucket, Key, CopySource):
-                src = f"{CopySource['Bucket']}/{CopySource['Key']}"
-                dst = f"{Bucket}/{Key}"
-                os.makedirs(os.path.dirname(dst), exist_ok=True)
-                import shutil
-
-                shutil.copy(src, dst)
-
-            def delete_object(self, Bucket, Key):
-                filepath = f"{Bucket}/{Key}"
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-
-        return LocalS3Client()
-    else:
-        return boto3.client("s3")
 
 
 def extract_description(entry: FeedParserDict) -> str:
@@ -196,15 +131,6 @@ def get_digits_from_guid(guid: str) -> int:
     return int(guid_only)
 
 
-def extract_campus(s3_key: str) -> str:
-    """
-    s3_key example: university-of-cincinnati/events_20251210_063602.xml
-    """
-    campus = s3_key.rsplit("/")[0]
-    logger.info(f"extract_campus: s3_key={s3_key}, campus={campus}")
-    return campus
-
-
 def file_schema() -> StructType:
     return StructType(
         [
@@ -220,7 +146,6 @@ def file_schema() -> StructType:
             StructField("event_description", StringType(), False),
             StructField("location", StringType(), False),
             StructField("external_link", StringType(), False),
-            StructField("rss_source_campus", StringType(), False),
             StructField("record_source", StringType(), False),
             StructField("load_date", StringType(), False),
         ]
@@ -230,17 +155,6 @@ def file_schema() -> StructType:
 #########################
 # Main functions
 #########################
-
-
-def get_raw_keys() -> list[str]:
-    paginator = s3_client.get_paginator("list_objects_v2")
-    keys: list[str] = []
-    for page in paginator.paginate(Bucket=args.source_bucket_name):
-        for obj in page.get("Contents", []):
-            file = obj.get("Key")
-            if file and not file.endswith("/"):
-                keys.append(file)
-    return keys
 
 
 def parse_rss(xml_byte_content: str) -> List[Event]:
@@ -315,7 +229,7 @@ def parse_rss(xml_byte_content: str) -> List[Event]:
 
 def events_to_dataframe(events: list[Event], s3_key: str) -> pd.DataFrame:
     """
-    key example: university-of-cincinnati/events_20251210_063602.xml
+    key example: new/events_20251210_063602.xml
     """
     logger.info(f"Converting events to spark dataframe for {s3_key}")
     load_date = datetime.now(tz=timezone.utc).isoformat()
@@ -324,7 +238,6 @@ def events_to_dataframe(events: list[Event], s3_key: str) -> pd.DataFrame:
 
     for event in events:
         row: Dict[str, Any] = event.to_dict()
-        row["rss_source_campus"] = extract_campus(s3_key)
         row["record_source"] = filename
         row["load_date"] = load_date
         rows.append(row)
@@ -337,74 +250,52 @@ def events_to_dataframe(events: list[Event], s3_key: str) -> pd.DataFrame:
 
 
 def main():
-    s3_client = create_s3_client()
-    raw_keys = get_raw_keys()
-    if not raw_keys:
-        logger.warning("No files to process")
-        return
+    try:
+        logger.info(
+            f"Staring to process s3://{args.source_bucket_name}/{args.source_key}"
+        )
 
-    for key in raw_keys:
-        if "/processed/" in key:
-            logger.warning(f"Skipping processed key: {key}")
-            continue
+        _, filename = args.source_key.rsplit("/", 1)
+        logger.debug(f"filename: {filename}")
 
-        if not key.endswith(".xml"):
-            logger.warning(f"Skipping non-xml key: {key}")
-            continue
+        obj = s3_client.get_object(Bucket=args.source_bucket_name, Key=args.source_key)
+        raw_bytes = obj["Body"].read()
+        xml_content = raw_bytes.decode("utf-8", errors="strict")
+        events = parse_rss(xml_byte_content=xml_content)
+        df = events_to_dataframe(events=events, s3_key=args.source_key)
 
-        try:
-            logger.info(f"Staring to process s3://{args.source_bucket_name}/{key}")
-            # example
-            # prefix: university-of-cincinnati, filename=events_20251210_063602.xml, base=events_20251210_063602
-            # csv_key: university-of-cincinnati/processed/events_20251210_063602.csv
+        output_path = f"s3://{args.target_bucket_name}/"
 
-            prefix, filename = key.rsplit("/", 1)
-            base = filename.rsplit(".", 1)[0]
-            logger.debug(f"prefix: {prefix}")
-            logger.debug(f"filename: {filename} | base: {base}")
+        # step 1: upload csv to staging
+        df.write.partitionBy(
+            "start_date_year",
+            "start_date_month",
+            "start_date_day",
+        ).mode("append").parquet(output_path)
 
-            obj = s3_client.get_object(Bucket=args.source_bucket_name, Key=key)
-            raw_bytes = obj["Body"].read()
-            xml_content = raw_bytes.decode("utf-8", errors="strict")
-            events = parse_rss(xml_byte_content=xml_content)
-            df = events_to_dataframe(events=events, s3_key=key)
+        df.show(3)
 
-            if IS_LOCAL:
-                output_path = f"file://{args.target_bucket_name}/"
-            else:
-                output_path = f"s3://{args.target_bucket_name}/"
+        logger.info(f"Wrote partitioned parquet to {output_path}")
 
-            # step 1: upload csv to staging
-            df.write.partitionBy(
-                "rss_source_campus",
-                "start_date_year",
-                "start_date_month",
-                "start_date_day",
-            ).mode("append").parquet(output_path)
+        # step 2: copy csv to /processed/ in raw bucket
+        dest_key = f"processed/{filename}"
+        s3_client.copy_object(
+            Bucket=args.source_bucket_name,
+            Key=dest_key,
+            CopySource={
+                "Bucket": args.source_bucket_name,
+                "Key": args.source_key,
+            },
+        )
 
-            df.show(5)
-
-            logger.info(f"Wrote partitioned parquet to {output_path}")
-
-            # step 2: copy csv to /processed/ in raw bucket
-            dest_key = f"{prefix}/processed/{filename}"
-            s3_client.copy_object(
-                Bucket=args.source_bucket_name,
-                Key=dest_key,
-                CopySource={
-                    "Bucket": args.source_bucket_name,
-                    "Key": key,
-                },
-            )
-
-            # step 3: remove original file from raw bucket
-            s3_client.delete_object(Bucket=args.source_bucket_name, Key=key)
-            logger.info(
-                f"moved s3://{args.source_bucket_name}/{key} -> s3://{args.source_bucket_name}/{dest_key}"
-            )
-        except Exception as e:
-            logger.error(f"Failed to process key: {key}", exc_info=True)
-            sys.exit(1)
+        # step 3: remove original file from raw bucket
+        s3_client.delete_object(Bucket=args.source_bucket_name, Key=args.source_key)
+        logger.info(
+            f"moved s3://{args.source_bucket_name}/{args.source_key} -> s3://{args.source_bucket_name}/{dest_key}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to process key: {args.source_key}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

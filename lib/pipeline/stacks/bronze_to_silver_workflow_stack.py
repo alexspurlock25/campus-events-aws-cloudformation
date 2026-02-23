@@ -56,10 +56,10 @@ class BronzeToSilverWorkflowStack(Stack):
             max_retries=0,
             command=glue.CfnJob.JobCommandProperty(
                 name="glueetl",
-                script_location=f"s3://{props.scripts_bucket.bucket_name}/glue/xml_to_parquet.py",
+                script_location=f"s3://{props.scripts_bucket.bucket_name}/glue/bronze_to_silver.py",
             ),
             default_arguments={
-                "--TempDir": f"s3://{props.bronze_bucket.bucket_name}/xml_to_parquet_logs/",
+                "--TempDir": f"s3://{props.bronze_bucket.bucket_name}/bronze_to_silver/",
                 "--continuous-log-logGroup": f"/aws-glue/jobs/{glue_job_name}",
                 "--enable-spark-ui": "true",
                 "--enable-metrics": "true",
