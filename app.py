@@ -48,19 +48,19 @@ lambda_stack = GetRssLambdaStack(
 )
 lambda_stack.add_dependency(dl_stack)
 
-glue_job_stack = BronzeToSilverWorkflowStack(
+bronze_to_silver_wf = BronzeToSilverWorkflowStack(
     scope=app,
-    construct_id="-".join([root_construct_id, "bronze-to-silver-wf"]),
+    construct_id=f"{app_config.project_name}-brz-to-slv-wf",
     props=BronzeToSilverWorkflowStackProps(
         bronze_bucket=dl_stack.bronze_bucket,
         silver_bucket=dl_stack.silver_bucket,
-        athena_results_bucket=analytics_stack.athena_results_bucket,
+        athena_results_bucket=dl_stack.athena_results_bucket,
         scripts_bucket=glue_scripts_stack.scripts_bucket,
+        notification_email=env_config.email,
     ),
 )
-glue_job_stack.add_dependency(dl_stack)
-glue_job_stack.add_dependency(analytics_stack)
-glue_job_stack.add_dependency(glue_scripts_stack)
+bronze_to_silver_wf.add_dependency(dl_stack)
+bronze_to_silver_wf.add_dependency(glue_scripts_stack)
 
 dynamo_db_stack = SilverToDynamoEventsWorkflowStack(
     scope=app,

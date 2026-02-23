@@ -1,10 +1,14 @@
 from dataclasses import dataclass
 
-from aws_cdk import Aws, Stack
-from aws_cdk import aws_events as events
-from aws_cdk import aws_events_targets as targets
+from aws_cdk import Duration, Stack
 from aws_cdk import aws_glue as glue
 from aws_cdk import aws_iam as iam
+from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_logs as logs
+from aws_cdk import aws_sns as sns
+from aws_cdk import aws_sns_subscriptions as subscriptions
+from aws_cdk import aws_stepfunctions as sf
+from aws_cdk import aws_stepfunctions_tasks as sf_tasks
 from aws_cdk.aws_s3 import IBucket
 
 
@@ -14,9 +18,12 @@ class BronzeToSilverWorkflowStackProps:
     silver_bucket: IBucket
     athena_results_bucket: IBucket
     scripts_bucket: IBucket
+    notification_email: str
 
 
 class BronzeToSilverWorkflowStack(Stack):
+    state_machine: sf.StateMachine
+
     def __init__(
         self, scope, construct_id, props: BronzeToSilverWorkflowStackProps, **kwargs
     ) -> None:
@@ -25,6 +32,28 @@ class BronzeToSilverWorkflowStack(Stack):
             construct_id,
             stack_name="CampusEventsBronzeToSilverWorkflow",
             **kwargs,
+        )
+
+        pipeline_failure_topic = sns.Topic(
+            self,
+            "WorkflowFailureTopic",
+            display_name="Campus Events Bronze to Silver Failures",
+            topic_name=f"{construct_id}-failures",
+        )
+
+        pipeline_failure_topic.add_subscription(
+            subscriptions.EmailSubscription(props.notification_email)
+        )
+
+        pipeline_success_topic = sns.Topic(
+            self,
+            "WorkflowSuccessTopic",
+            display_name="Campus Events Bronze to Silver Success",
+            topic_name=f"{construct_id}-success",
+        )
+
+        pipeline_success_topic.add_subscription(
+            subscriptions.EmailSubscription(props.notification_email)
         )
 
         glue_role = iam.Role(
@@ -38,13 +67,24 @@ class BronzeToSilverWorkflowStack(Stack):
                 )
             ],
         )
-
         props.scripts_bucket.grant_read(glue_role)
         props.bronze_bucket.grant_read_write(glue_role)
         props.silver_bucket.grant_read_write(glue_role)
 
+        glue_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "glue:StartDataQualityRulesetEvaluationRun",
+                    "glue:GetDataQualityRulesetEvaluationRun",
+                    "glue:BatchGetDataQualityResult",
+                    "glue:GetDataQualityRuleset",
+                ],
+                resources=["*"],
+            )
+        )
+
         glue_job_name = f"{construct_id}-job"
-        job = glue.CfnJob(
+        glue.CfnJob(
             scope=self,
             id="BronzeToSilverJob",
             name=glue_job_name,
@@ -52,7 +92,7 @@ class BronzeToSilverWorkflowStack(Stack):
             glue_version="5.1",
             worker_type="G.1X",
             number_of_workers=2,
-            timeout=5,
+            timeout=10,
             max_retries=0,
             command=glue.CfnJob.JobCommandProperty(
                 name="glueetl",
@@ -70,30 +110,197 @@ class BronzeToSilverWorkflowStack(Stack):
             },
         )
 
-        rule = events.Rule(
+        crawler_role = iam.Role(
             scope=self,
-            id="BronzeXmlObjectCreatedRule",
-            rule_name=f"{construct_id}-xml-object-created",
-            event_pattern=events.EventPattern(
-                source=["aws.s3"],
-                detail_type=["Object Created"],
-                detail={
-                    "bucket": {"name": [props.bronze_bucket.bucket_name]},
-                    "object": {"key": [{"suffix": ".xml"}]},
+            id="CrawlerServiceRole",
+            role_name=f"{construct_id}-crawler-role",
+            assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name(
+                    "service-role/AWSGlueServiceRole"
+                )
+            ],
+        )
+        props.silver_bucket.grant_read(crawler_role)
+
+        crawler_name = f"{construct_id}-silver-crawler"
+        glue.CfnCrawler(
+            scope=self,
+            id="SilverCrawler",
+            name=crawler_name,
+            role=crawler_role.role_arn,
+            database_name="campus-events-prod-data-lake-silver-db",
+            targets=glue.CfnCrawler.TargetsProperty(
+                s3_targets=[
+                    glue.CfnCrawler.S3TargetProperty(
+                        path=f"s3://{props.silver_bucket.bucket_name}/",
+                        exclusions=["pipeline-results/**"],
+                    )
+                ]
+            ),
+            table_prefix="",
+            schema_change_policy=glue.CfnCrawler.SchemaChangePolicyProperty(
+                update_behavior="UPDATE_IN_DATABASE",
+                delete_behavior="DELETE_FROM_DATABASE",
+            ),
+            # Professional configuration for 4-level deep partitions
+            configuration="""{
+                "Version": 1.0,
+                "CrawlerOutput": {
+                    "Partitions": {
+                        "AddOrUpdateBehavior": "InheritFromTable"
+                    }
                 },
+                "Grouping": {
+                    "TableGroupingPolicy": "CombineCompatibleSchemas",
+                    "TableLevelConfiguration": 6
+                }
+            }""",
+            description="Crawls silver bucket with 4-level partitioning: rss_source_campus/start_date_year/start_date_month/start_date_day",
+        )
+
+        list_files_fn = _lambda.Function(
+            scope=self,
+            id="ListFilesLambda",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="list_brz_files_fn.handler",
+            timeout=Duration.seconds(30),
+            code=_lambda.Code.from_asset("lib/pipeline/functions"),
+        )
+        list_files_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:ListBucket"],
+                resources=[props.bronze_bucket.bucket_arn],
+                conditions={"StringLike": {"s3:prefix": ["new/*"]}},
+            )
+        )
+
+        list_files_task = sf_tasks.LambdaInvoke(
+            scope=self,
+            id="ListUnprocessedFiles",
+            lambda_function=list_files_fn,
+            payload=sf.TaskInput.from_object(
+                {
+                    "BRONZE_BUCKET": props.bronze_bucket.bucket_name,
+                }
             ),
         )
 
-        rule.add_target(
-            targets.AwsApi(
-                service="Glue",
-                action="startJobRun",
-                parameters={"JobName": job.ref},
-                policy_statement=iam.PolicyStatement(
-                    actions=["glue:StartJobRun"],
-                    resources=[
-                        f"arn:aws:glue:{Aws.REGION}:{Aws.ACCOUNT_ID}:job/{glue_job_name}"
-                    ],
+        glue_task = sf_tasks.GlueStartJobRun(
+            scope=self,
+            id="BronzeToSilverRunJob",
+            glue_job_name=glue_job_name,
+            integration_pattern=sf.IntegrationPattern.RUN_JOB,
+            timeout=Duration.minutes(10),
+            arguments=sf.TaskInput.from_object(
+                {"--SOURCE_KEY": sf.JsonPath.string_at("$")}
+            ),
+        )
+
+        notify_success = sf_tasks.SnsPublish(
+            scope=self,
+            id="NotifySuccess",
+            topic=pipeline_success_topic,
+            subject="✅ Campus Events Data Pipeline - Bronze to Silver Workflow Processing Complete",
+            message=sf.TaskInput.from_json_path_at("$"),
+        )
+
+        process_files_map = sf.Map(
+            self,
+            "ProcessNewFilesMap",
+            items_path=sf.JsonPath.string_at("$.Payload"),
+            max_concurrency=1,
+        )
+
+        process_files_map.iterator(
+            glue_task.add_catch(
+                sf_tasks.SnsPublish(
+                    scope=self,
+                    id="NotifyGlueJobFailure",
+                    topic=pipeline_failure_topic,
+                    subject="🚨 Campus Events Data Pipeline - Bronze to Silver Workflow Glue Job Processing Failed",
+                    message=sf.TaskInput.from_json_path_at("$"),
+                ).next(
+                    sf.Fail(
+                        scope=self,
+                        id="GlueJobFailed",
+                        cause="Bronze to Silver transformation failed",
+                        error="GlueJobError",
+                    )
                 ),
+                errors=["States.ALL"],
+                result_path="$",
+            )
+        )
+
+        definition = (
+            list_files_task.add_catch(
+                sf_tasks.SnsPublish(
+                    scope=self,
+                    id="NotifyListFilesFailure",
+                    topic=pipeline_failure_topic,
+                    subject="🚨 Campus Events Data Pipeline - Failed to list new files",
+                    message=sf.TaskInput.from_json_path_at("$.error"),
+                ).next(
+                    sf.Fail(
+                        scope=self,
+                        id="ListFilesFailed",
+                        cause="Failed to list new files",
+                        error="ListFilesError",
+                    )
+                ),
+                errors=["States.ALL"],
+                result_path="$.error",
+            )
+            .next(
+                process_files_map.add_catch(
+                    sf_tasks.SnsPublish(
+                        scope=self,
+                        id="NotifyMapProcessingFailure",
+                        topic=pipeline_failure_topic,
+                        subject="🚨 Campus Events Data Pipeline - Failed to process files",
+                        message=sf.TaskInput.from_json_path_at("$.error"),
+                    ).next(
+                        sf.Fail(
+                            scope=self,
+                            id="MapProcessingFailure",
+                            cause="Failed to process files",
+                            error="MapError",
+                        )
+                    ),
+                    errors=["States.ALL"],
+                    result_path="$.error",
+                )
+            )
+            .next(notify_success)
+        )
+
+        self.state_machine = sf.StateMachine(
+            scope=self,
+            id="BronzeToSilverStateMachine",
+            state_machine_name=f"{construct_id}-state-machine",
+            definition_body=sf.DefinitionBody.from_chainable(definition),
+            timeout=Duration.minutes(35),
+            tracing_enabled=True,
+        )
+
+        # Grant Step Functions permission to publish to SNS
+        pipeline_failure_topic.grant_publish(self.state_machine)
+        pipeline_success_topic.grant_publish(self.state_machine)
+
+        # Grant Step Functions permission to read job results from S3
+        props.silver_bucket.grant_read(self.state_machine)
+
+        # Grant Step Functions permission to run crawler
+        self.state_machine.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "glue:StartCrawler",
+                    "glue:GetCrawler",
+                    "glue:GetCrawlerMetrics",
+                ],
+                resources=[
+                    f"arn:aws:glue:{self.region}:{self.account}:crawler/{crawler_name}"
+                ],
             )
         )
