@@ -3,17 +3,8 @@ Data lake infrastructure with Lake Formation governance.
 Manages bronze and silver S3 buckets following medallion architecture.
 """
 
-from aws_cdk import (
-    Aws,
-    Duration,
-    RemovalPolicy,
-    Stack,
-    aws_glue,
-    aws_iam,
-    aws_s3,
-)
+from aws_cdk import Aws, Duration, RemovalPolicy, Stack, aws_glue, aws_s3
 from aws_cdk import aws_athena as athena
-from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
 
@@ -26,10 +17,11 @@ class DataLakeStack(Stack):
     bronze_bucket: aws_s3.Bucket
     silver_bucket: aws_s3.Bucket
     athena_results_bucket: aws_s3.Bucket
+    glue_db_name: str
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(
-            scope, construct_id, stack_name="CampusEventsDataLake", **kwargs
+            scope, construct_id, stack_name="UCEventsDataLakeStack", **kwargs
         )
 
         # ------------------------------------------------------------------
@@ -88,5 +80,18 @@ class DataLakeStack(Stack):
                 result_configuration=athena.CfnWorkGroup.ResultConfigurationProperty(
                     output_location=f"s3://{self.athena_results_bucket.bucket_name}/athena-results/"
                 ),
+            ),
+        )
+
+        self.glue_db_name = f"{construct_id}-glue-database"
+
+        aws_glue.CfnDatabase(
+            scope=self,
+            id="UCEventsDatabase",
+            catalog_id=Aws.ACCOUNT_ID,
+            database_input=aws_glue.CfnDatabase.DatabaseInputProperty(
+                name=self.glue_db_name,
+                description="Database for UC Events",
+                location_uri=f"s3://{self.silver_bucket.bucket_name}/",
             ),
         )
