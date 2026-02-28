@@ -3,7 +3,10 @@
 from aws_cdk import App
 
 from lib.config import load_environment_config, load_projecttoml_config
-from lib.infrastructure import DataLakeStack, LakeFormationStack, ScriptsResourcesStack
+from lib.infrastructure import (
+    DataLakeStack,
+    ScriptsResourcesStack,
+)
 from lib.pipeline.stacks import (
     BronzeToSilverWorkflowStack,
     BronzeToSilverWorkflowStackProps,
@@ -19,14 +22,6 @@ env_config = load_environment_config()
 app_config = load_projecttoml_config()
 
 dl_stack = DataLakeStack(scope=app, construct_id=f"{app_config.project_name}-dl")
-
-lf_stack = LakeFormationStack(
-    scope=app,
-    construct_id=f"{app_config.project_name}-lf",
-    bronze_bucket=dl_stack.bronze_bucket,
-    silver_bucket=dl_stack.silver_bucket,
-)
-lf_stack.add_dependency(dl_stack)
 
 glue_scripts_stack = ScriptsResourcesStack(
     scope=app, construct_id=f"{app_config.project_name}-script-resources"
