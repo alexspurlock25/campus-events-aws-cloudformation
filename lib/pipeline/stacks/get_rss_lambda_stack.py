@@ -34,7 +34,7 @@ class GetRssLambdaStack(Stack):
         super().__init__(
             scope,
             construct_id,
-            stack_name="CampusEventsGetRssFeedLambda",
+            stack_name="UCEventsGetRssLambdaStack",
             **kwargs,
         )
 

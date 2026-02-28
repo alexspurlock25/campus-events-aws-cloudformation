@@ -30,14 +30,14 @@ class BronzeToSilverWorkflowStack(Stack):
         super().__init__(
             scope,
             construct_id,
-            stack_name="CampusEventsBronzeToSilverWorkflow",
+            stack_name="UCEventsBronzeToSilverWfStack",
             **kwargs,
         )
 
         pipeline_failure_topic = sns.Topic(
             self,
             "WorkflowFailureTopic",
-            display_name="Campus Events Bronze to Silver Failures",
+            display_name="UC Events Bronze to Silver Failures",
             topic_name=f"{construct_id}-failures",
         )
 
@@ -58,8 +58,8 @@ class BronzeToSilverWorkflowStack(Stack):
 
         glue_role = iam.Role(
             scope=self,
-            id="BronzeToSilverJobServiceRole",
-            role_name=f"{construct_id}-role",
+            id="GlueJobServiceRole",
+            role_name=f"{construct_id}-glue-role",
             assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name(
@@ -83,7 +83,7 @@ class BronzeToSilverWorkflowStack(Stack):
             )
         )
 
-        glue_job_name = f"{construct_id}-job"
+        glue_job_name = f"{construct_id}-data-job"
         glue.CfnJob(
             scope=self,
             id="BronzeToSilverJob",
@@ -100,6 +100,7 @@ class BronzeToSilverWorkflowStack(Stack):
             ),
             default_arguments={
                 "--TempDir": f"s3://{props.bronze_bucket.bucket_name}/bronze_to_silver/",
+                "--extra-py-files": f"s3://{props.scripts_bucket.bucket_name}/ce_types.py",
                 "--continuous-log-logGroup": f"/aws-glue/jobs/{glue_job_name}",
                 "--enable-spark-ui": "true",
                 "--enable-metrics": "true",
@@ -127,7 +128,7 @@ class BronzeToSilverWorkflowStack(Stack):
         glue.CfnCrawler(
             scope=self,
             id="SilverCrawler",
-            name=crawler_name,
+            name=f"{construct_id}-silver-crawler",
             role=crawler_role.role_arn,
             database_name="campus-events-prod-data-lake-silver-db",
             targets=glue.CfnCrawler.TargetsProperty(
@@ -188,7 +189,7 @@ class BronzeToSilverWorkflowStack(Stack):
 
         glue_task = sf_tasks.GlueStartJobRun(
             scope=self,
-            id="BronzeToSilverRunJob",
+            id="RunDataGlueJob",
             glue_job_name=glue_job_name,
             integration_pattern=sf.IntegrationPattern.RUN_JOB,
             timeout=Duration.minutes(10),

@@ -39,7 +39,7 @@ class SilverToDynamoEventsWorkflowStack(Stack):
         super().__init__(
             scope,
             construct_id,
-            stack_name="CampusEventsDynamoEventsWorkflow",
+            stack_name="UCEventsDynamoEventsWfStack",
             **kwargs,
         )
 

@@ -21,7 +21,7 @@ class ScriptsResourcesStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(
-            scope, construct_id, stack_name="CampusEventsScriptsResources", **kwargs
+            scope, construct_id, stack_name="UCEventsResourcesStack", **kwargs
         )
 
         self.scripts_bucket = s3.Bucket(
