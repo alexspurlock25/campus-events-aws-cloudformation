@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 import sys
 import unicodedata
@@ -14,10 +13,10 @@ from awsglue.context import GlueContext
 from awsglue.job import Job
 from awsglue.utils import getResolvedOptions
 from bs4 import BeautifulSoup
+from ce_types import Event, file_schema
 from feedparser import FeedParserDict
 from pyspark.context import SparkContext
 from pyspark.sql import Row
-from pyspark.sql.types import IntegerType, StringType, StructField, StructType
 
 s3_client = boto3.client("s3")
 spark_context = SparkContext()
@@ -46,48 +45,16 @@ class Args:
     """
 
     job_name: str
-    source_key: str
+    unprocessed_source_key: str
     source_bucket_name: str
     target_bucket_name: str
-
-
-@dataclass
-class Event:
-    event_id: int
-    title: str
-    host: str
-    start_date_year: int
-    start_date_month: int
-    start_date_day: int
-    end_date: str
-    start_time: str
-    end_time: str
-    event_description: str
-    location: str
-    external_link: str
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "event_id": self.event_id,
-            "title": self.title,
-            "host": self.host,
-            "start_date_year": self.start_date_year,
-            "start_date_month": self.start_date_month,
-            "start_date_day": self.start_date_day,
-            "end_date": self.end_date,
-            "start_time": self.start_time,
-            "end_time": self.end_time,
-            "event_description": self.event_description,
-            "location": self.location,
-            "external_link": self.external_link,
-        }
 
 
 _args = getResolvedOptions(
     sys.argv,
     [
         "JOB_NAME",
-        "SOURCE_KEY",
+        "UNPROCESSED_SOURCE_KEY",
         "SOURCE_BUCKET_NAME",
         "TARGET_BUCKET_NAME",
     ],
@@ -95,7 +62,7 @@ _args = getResolvedOptions(
 
 args = Args(
     job_name=_args["JOB_NAME"],
-    source_key=_args["SOURCE_KEY"],
+    unprocessed_source_key=_args["UNPROCESSED_SOURCE_KEY"],
     source_bucket_name=_args["SOURCE_BUCKET_NAME"],
     target_bucket_name=_args["TARGET_BUCKET_NAME"],
 )
@@ -127,39 +94,21 @@ def extract_description(entry: FeedParserDict) -> str:
 
 
 def get_digits_from_guid(guid: str) -> int:
-    guid_only = guid.rsplit("/")[-1]
-    return int(guid_only)
+    try:
+        guid_only = guid.rsplit("/")[-1]
+        return int(guid_only)
+    except ValueError:
+        raise Exception(f"Invalid GUID: {guid}")
 
 
-def file_schema() -> StructType:
-    return StructType(
-        [
-            StructField("event_id", IntegerType(), False),
-            StructField("title", StringType(), False),
-            StructField("host", StringType(), True),
-            StructField("start_date_year", IntegerType(), False),
-            StructField("start_date_month", IntegerType(), False),
-            StructField("start_date_day", IntegerType(), False),
-            StructField("end_date", StringType(), False),
-            StructField("start_time", StringType(), False),
-            StructField("end_time", StringType(), False),
-            StructField("event_description", StringType(), False),
-            StructField("location", StringType(), False),
-            StructField("external_link", StringType(), False),
-            StructField("record_source", StringType(), False),
-            StructField("load_date", StringType(), False),
-        ]
-    )
-
-
-#########################
-# Main functions
-#########################
+def get_field(entry: FeedParserDict, field_name: str) -> str:
+    value = entry.get(field_name) or ""
+    return str(value).strip()
 
 
 def parse_rss(xml_byte_content: str) -> List[Event]:
     logger.info("Parsing content...")
-    events: list[Event] = []
+    events: List[Event] = []
     feed = feedparser.parse(xml_byte_content)
 
     target_date_format = "%Y-%m-%d"
@@ -167,13 +116,11 @@ def parse_rss(xml_byte_content: str) -> List[Event]:
     for entry in feed.entries:
         title = str(entry["title"]).strip()
         event_id = get_digits_from_guid(guid=str(entry["guid"]).strip())
-        host = ""
-        location = ""
-        link = ""
-        if "host" in entry:
-            host = str(entry["host"]).strip()
-            location = re.sub(r"[^\x00-\x7F]+", " ", str(entry["location"])).strip()
-            link = str(entry["link"]).strip()
+        host = get_field(entry, "host")
+        location = re.sub(
+            r"[^\x00-\x7F]+", " ", str(entry["location"] if entry["location"] else "")
+        ).strip()
+        link = get_field(entry, "link")
 
         start_date_match = re.search(date_pattern, str(entry["start"]))
         start_date = ""
@@ -252,19 +199,21 @@ def events_to_dataframe(events: list[Event], s3_key: str) -> pd.DataFrame:
 def main():
     try:
         logger.info(
-            f"Staring to process s3://{args.source_bucket_name}/{args.source_key}"
+            f"Staring to process s3://{args.source_bucket_name}/{args.unprocessed_source_key}"
         )
 
-        _, filename = args.source_key.rsplit("/", 1)
+        _, filename = args.unprocessed_source_key.rsplit("/", 1)
         logger.debug(f"filename: {filename}")
 
-        obj = s3_client.get_object(Bucket=args.source_bucket_name, Key=args.source_key)
+        obj = s3_client.get_object(
+            Bucket=args.source_bucket_name, Key=args.unprocessed_source_key
+        )
         raw_bytes = obj["Body"].read()
         xml_content = raw_bytes.decode("utf-8", errors="strict")
         events = parse_rss(xml_byte_content=xml_content)
-        df = events_to_dataframe(events=events, s3_key=args.source_key)
+        df = events_to_dataframe(events=events, s3_key=args.unprocessed_source_key)
 
-        output_path = f"s3://{args.target_bucket_name}/"
+        output_path = f"s3://{args.target_bucket_name}/ce_events/"
 
         # step 1: upload csv to staging
         df.write.partitionBy(
@@ -284,18 +233,22 @@ def main():
             Key=dest_key,
             CopySource={
                 "Bucket": args.source_bucket_name,
-                "Key": args.source_key,
+                "Key": args.unprocessed_source_key,
             },
         )
 
         # step 3: remove original file from raw bucket
-        s3_client.delete_object(Bucket=args.source_bucket_name, Key=args.source_key)
+        s3_client.delete_object(
+            Bucket=args.source_bucket_name, Key=args.unprocessed_source_key
+        )
         logger.info(
-            f"moved s3://{args.source_bucket_name}/{args.source_key} -> s3://{args.source_bucket_name}/{dest_key}"
+            f"moved s3://{args.source_bucket_name}/{args.unprocessed_source_key} -> s3://{args.source_bucket_name}/{dest_key}"
         )
     except Exception as e:
-        logger.error(f"Failed to process key: {args.source_key}", exc_info=True)
-        sys.exit(1)
+        logger.error(
+            f"Failed to process key: {args.unprocessed_source_key} {e}", exc_info=True
+        )
+        raise Exception(f"Failed to process key: {args.unprocessed_source_key} {e}")
 
 
 if __name__ == "__main__":

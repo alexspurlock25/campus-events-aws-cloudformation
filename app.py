@@ -42,6 +42,7 @@ bronze_to_silver_wf = BronzeToSilverWorkflowStack(
     props=BronzeToSilverWorkflowStackProps(
         bronze_bucket=dl_stack.bronze_bucket,
         silver_bucket=dl_stack.silver_bucket,
+        silver_db_name=dl_stack.glue_db_name,
         athena_results_bucket=dl_stack.athena_results_bucket,
         scripts_bucket=glue_scripts_stack.scripts_bucket,
         notification_email=env_config.email,

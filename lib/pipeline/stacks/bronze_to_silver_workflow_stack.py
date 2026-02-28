@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 
-from aws_cdk import Duration, Stack
+from aws_cdk import Aws, Duration, Stack, aws_glue
 from aws_cdk import aws_glue as glue
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
-from aws_cdk import aws_logs as logs
 from aws_cdk import aws_sns as sns
 from aws_cdk import aws_sns_subscriptions as subscriptions
 from aws_cdk import aws_stepfunctions as sf
@@ -17,6 +16,7 @@ class BronzeToSilverWorkflowStackProps:
     bronze_bucket: IBucket
     silver_bucket: IBucket
     athena_results_bucket: IBucket
+    silver_db_name: str
     scripts_bucket: IBucket
     notification_email: str
 
@@ -71,17 +71,18 @@ class BronzeToSilverWorkflowStack(Stack):
         props.bronze_bucket.grant_read_write(glue_role)
         props.silver_bucket.grant_read_write(glue_role)
 
-        glue_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=[
-                    "glue:StartDataQualityRulesetEvaluationRun",
-                    "glue:GetDataQualityRulesetEvaluationRun",
-                    "glue:BatchGetDataQualityResult",
-                    "glue:GetDataQualityRuleset",
-                ],
-                resources=["*"],
-            )
+        crawler_role = iam.Role(
+            scope=self,
+            id="CrawlerServiceRole",
+            role_name=f"{construct_id}-crawler-role",
+            assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name(
+                    "service-role/AWSGlueServiceRole"
+                )
+            ],
         )
+        props.silver_bucket.grant_read(crawler_role)
 
         glue_job_name = f"{construct_id}-data-job"
         glue.CfnJob(
@@ -111,53 +112,23 @@ class BronzeToSilverWorkflowStack(Stack):
             },
         )
 
-        crawler_role = iam.Role(
-            scope=self,
-            id="CrawlerServiceRole",
-            role_name=f"{construct_id}-crawler-role",
-            assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
-            managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AWSGlueServiceRole"
-                )
-            ],
-        )
-        props.silver_bucket.grant_read(crawler_role)
-
-        crawler_name = f"{construct_id}-silver-crawler"
         glue.CfnCrawler(
             scope=self,
             id="SilverCrawler",
             name=f"{construct_id}-silver-crawler",
             role=crawler_role.role_arn,
-            database_name="campus-events-prod-data-lake-silver-db",
+            database_name=props.silver_db_name,
             targets=glue.CfnCrawler.TargetsProperty(
                 s3_targets=[
                     glue.CfnCrawler.S3TargetProperty(
-                        path=f"s3://{props.silver_bucket.bucket_name}/",
-                        exclusions=["pipeline-results/**"],
+                        path=f"s3://{props.silver_bucket.bucket_name}/ce_events/",
                     )
                 ]
             ),
-            table_prefix="",
             schema_change_policy=glue.CfnCrawler.SchemaChangePolicyProperty(
-                update_behavior="UPDATE_IN_DATABASE",
-                delete_behavior="DELETE_FROM_DATABASE",
+                update_behavior="LOG",
+                delete_behavior="LOG",
             ),
-            # Professional configuration for 4-level deep partitions
-            configuration="""{
-                "Version": 1.0,
-                "CrawlerOutput": {
-                    "Partitions": {
-                        "AddOrUpdateBehavior": "InheritFromTable"
-                    }
-                },
-                "Grouping": {
-                    "TableGroupingPolicy": "CombineCompatibleSchemas",
-                    "TableLevelConfiguration": 6
-                }
-            }""",
-            description="Crawls silver bucket with 4-level partitioning: rss_source_campus/start_date_year/start_date_month/start_date_day",
         )
 
         list_files_fn = _lambda.Function(
@@ -194,7 +165,7 @@ class BronzeToSilverWorkflowStack(Stack):
             integration_pattern=sf.IntegrationPattern.RUN_JOB,
             timeout=Duration.minutes(10),
             arguments=sf.TaskInput.from_object(
-                {"--SOURCE_KEY": sf.JsonPath.string_at("$")}
+                {"--UNPROCESSED_SOURCE_KEY": sf.JsonPath.string_at("$")}
             ),
         )
 
@@ -291,17 +262,3 @@ class BronzeToSilverWorkflowStack(Stack):
 
         # Grant Step Functions permission to read job results from S3
         props.silver_bucket.grant_read(self.state_machine)
-
-        # Grant Step Functions permission to run crawler
-        self.state_machine.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=[
-                    "glue:StartCrawler",
-                    "glue:GetCrawler",
-                    "glue:GetCrawlerMetrics",
-                ],
-                resources=[
-                    f"arn:aws:glue:{self.region}:{self.account}:crawler/{crawler_name}"
-                ],
-            )
-        )
