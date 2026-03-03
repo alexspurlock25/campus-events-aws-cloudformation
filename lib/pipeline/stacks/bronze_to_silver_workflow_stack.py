@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from aws_cdk import Aws, Duration, Stack, aws_glue
+from aws_cdk import Duration, Stack
 from aws_cdk import aws_glue as glue
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
@@ -95,6 +95,9 @@ class BronzeToSilverWorkflowStack(Stack):
             number_of_workers=2,
             timeout=10,
             max_retries=0,
+            execution_property=glue.CfnJob.ExecutionPropertyProperty(
+                max_concurrent_runs=5
+            ),
             command=glue.CfnJob.JobCommandProperty(
                 name="glueetl",
                 script_location=f"s3://{props.scripts_bucket.bucket_name}/glue/bronze_to_silver.py",
@@ -121,13 +124,13 @@ class BronzeToSilverWorkflowStack(Stack):
             targets=glue.CfnCrawler.TargetsProperty(
                 s3_targets=[
                     glue.CfnCrawler.S3TargetProperty(
-                        path=f"s3://{props.silver_bucket.bucket_name}/ce_events/",
+                        path=f"s3://{props.silver_bucket.bucket_name}/uc_events/",
                     )
                 ]
             ),
             schema_change_policy=glue.CfnCrawler.SchemaChangePolicyProperty(
-                update_behavior="LOG",
-                delete_behavior="LOG",
+                update_behavior="UPDATE_IN_DATABASE",
+                delete_behavior="DEPRECATE_IN_DATABASE",
             ),
         )
 
@@ -184,25 +187,13 @@ class BronzeToSilverWorkflowStack(Stack):
             max_concurrency=1,
         )
 
-        process_files_map.iterator(
-            glue_task.add_catch(
-                sf_tasks.SnsPublish(
-                    scope=self,
-                    id="NotifyGlueJobFailure",
-                    topic=pipeline_failure_topic,
-                    subject="🚨 Campus Events Data Pipeline - Bronze to Silver Workflow Glue Job Processing Failed",
-                    message=sf.TaskInput.from_json_path_at("$"),
-                ).next(
-                    sf.Fail(
-                        scope=self,
-                        id="GlueJobFailed",
-                        cause="Bronze to Silver transformation failed",
-                        error="GlueJobError",
-                    )
-                ),
-                errors=["States.ALL"],
-                result_path="$",
-            )
+        process_files_map.iterator(glue_task)
+
+        fail = sf.Fail(
+            scope=self,
+            id="BronzeToSilverFailed",
+            cause="Failed to process new files",
+            error="ProcessError",
         )
 
         definition = (
@@ -213,14 +204,7 @@ class BronzeToSilverWorkflowStack(Stack):
                     topic=pipeline_failure_topic,
                     subject="🚨 Campus Events Data Pipeline - Failed to list new files",
                     message=sf.TaskInput.from_json_path_at("$.error"),
-                ).next(
-                    sf.Fail(
-                        scope=self,
-                        id="ListFilesFailed",
-                        cause="Failed to list new files",
-                        error="ListFilesError",
-                    )
-                ),
+                ).next(fail),
                 errors=["States.ALL"],
                 result_path="$.error",
             )
@@ -232,14 +216,7 @@ class BronzeToSilverWorkflowStack(Stack):
                         topic=pipeline_failure_topic,
                         subject="🚨 Campus Events Data Pipeline - Failed to process files",
                         message=sf.TaskInput.from_json_path_at("$.error"),
-                    ).next(
-                        sf.Fail(
-                            scope=self,
-                            id="MapProcessingFailure",
-                            cause="Failed to process files",
-                            error="MapError",
-                        )
-                    ),
+                    ).next(fail),
                     errors=["States.ALL"],
                     result_path="$.error",
                 )
