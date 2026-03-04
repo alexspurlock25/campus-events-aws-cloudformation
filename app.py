@@ -10,8 +10,8 @@ from lib.infrastructure import (
 from lib.pipeline.stacks import (
     BronzeToSilverWorkflowStack,
     BronzeToSilverWorkflowStackProps,
-    GetRssLambdaStack,
-    GetRssLambdaStackProps,
+    RssPipelineOrchestratorStack,
+    RssPipelineOrchestratorStackProps,
     SilverToDynamoEventsWorkflowStack,
     SilverToDynamoEventsWorkflowStackProps,
 )
@@ -26,15 +26,6 @@ dl_stack = DataLakeStack(scope=app, construct_id=f"{app_config.project_name}-dl"
 glue_scripts_stack = ScriptsResourcesStack(
     scope=app, construct_id=f"{app_config.project_name}-script-resources"
 )
-
-lambda_stack = GetRssLambdaStack(
-    scope=app,
-    construct_id=f"{app_config.project_name}-get-rss",
-    props=GetRssLambdaStackProps(
-        config=env_config, bronze_bucket=dl_stack.bronze_bucket
-    ),
-)
-lambda_stack.add_dependency(dl_stack)
 
 bronze_to_silver_wf = BronzeToSilverWorkflowStack(
     scope=app,
@@ -63,18 +54,18 @@ silver_to_dynamo_wf = SilverToDynamoEventsWorkflowStack(
 silver_to_dynamo_wf.add_dependency(dl_stack)
 silver_to_dynamo_wf.add_dependency(glue_scripts_stack)
 
-# orchestrator_stack = RssPipelineOrchestratorStack(
-#     scope=app,
-#     construct_id="-".join([root_construct_id, "orchestrator"]),
-#     props=RssPipelineOrchestratorStackProps(
-#         config=env_config,
-#         fetch_rss_lambda=lambda_stack.rss_function,
-#         bronze_to_silver_state_machine=bronze_to_silver_wf.state_machine,
-#         silver_to_dynamo_state_machine=silver_to_dynamo_wf.state_machine,
-#     ),
-# )
-# orchestrator_stack.add_dependency(lambda_stack)
-# orchestrator_stack.add_dependency(bronze_to_silver_wf)
-# orchestrator_stack.add_dependency(silver_to_dynamo_wf)
+orchestrator_stack = RssPipelineOrchestratorStack(
+    scope=app,
+    construct_id=f"{app_config.project_name}-orchestrator",
+    props=RssPipelineOrchestratorStackProps(
+        config=env_config,
+        bronze_bucket=dl_stack.bronze_bucket,
+        bronze_to_silver_state_machine=bronze_to_silver_wf.state_machine,
+        silver_to_dynamo_state_machine=silver_to_dynamo_wf.state_machine,
+    ),
+)
+orchestrator_stack.add_dependency(dl_stack)
+orchestrator_stack.add_dependency(bronze_to_silver_wf)
+orchestrator_stack.add_dependency(silver_to_dynamo_wf)
 
 app.synth()
