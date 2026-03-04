@@ -104,7 +104,7 @@ class BronzeToSilverWorkflowStack(Stack):
             ),
             default_arguments={
                 "--TempDir": f"s3://{props.bronze_bucket.bucket_name}/bronze_to_silver/",
-                "--extra-py-files": f"s3://{props.scripts_bucket.bucket_name}/ce_types.py",
+                "--extra-py-files": f"s3://{props.scripts_bucket.bucket_name}/uc_types.py",
                 "--continuous-log-logGroup": f"/aws-glue/jobs/{glue_job_name}",
                 "--enable-spark-ui": "true",
                 "--enable-metrics": "true",

@@ -13,11 +13,11 @@ from awsglue.context import GlueContext
 from awsglue.job import Job
 from awsglue.utils import getResolvedOptions
 from bs4 import BeautifulSoup
-from ce_types import Event, file_schema
 from feedparser import FeedParserDict
 from pyspark.context import SparkContext
 from pyspark.sql import Row, Window
 from pyspark.sql import functions as F
+from uc_types import Event, file_schema
 
 s3_client = boto3.client("s3")
 spark_context = SparkContext()
@@ -210,6 +210,27 @@ def write_deduplicated(new_df, output_path):
     deduped_df.write.mode("overwrite").parquet(output_path)
 
 
+def copy_to_processed_bucket():
+    filename = args.unprocessed_source_key.split("/")[-1]
+    dest_key = f"processed/{filename}"
+
+    s3_client.copy_object(
+        Bucket=args.source_bucket_name,
+        Key=dest_key,
+        CopySource={
+            "Bucket": args.source_bucket_name,
+            "Key": args.unprocessed_source_key,
+        },
+    )
+
+    s3_client.delete_object(
+        Bucket=args.source_bucket_name, Key=args.unprocessed_source_key
+    )
+    print(
+        f"moved s3://{args.source_bucket_name}/{args.unprocessed_source_key} -> s3://{args.source_bucket_name}/{dest_key}"
+    )
+
+
 def main():
     try:
         logger.info(
@@ -229,6 +250,9 @@ def main():
 
         write_deduplicated(new_df=df, output_path=output_path)
         logger.info(f"Wrote partitioned parquet to {output_path}")
+
+        copy_to_processed_bucket()
+
     except Exception as e:
         logger.error(
             f"Failed to process key: {args.unprocessed_source_key} {e}", exc_info=True

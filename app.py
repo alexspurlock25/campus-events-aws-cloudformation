@@ -51,17 +51,17 @@ bronze_to_silver_wf = BronzeToSilverWorkflowStack(
 bronze_to_silver_wf.add_dependency(dl_stack)
 bronze_to_silver_wf.add_dependency(glue_scripts_stack)
 
-# silver_to_dynamo_wf = SilverToDynamoEventsWorkflowStack(
-#     scope=app,
-#     construct_id="-".join([root_construct_id, "silver-to-dynamo-events-wf"]),
-#     props=SilverToDynamoEventsWorkflowStackProps(
-#         bronze_bucket=dl_stack.bronze_bucket,
-#         silver_bucket=dl_stack.silver_bucket,
-#         scripts_bucket=glue_scripts_stack.scripts_bucket,
-#     ),
-# )
-# silver_to_dynamo_wf.add_dependency(dl_stack)
-# bronze_to_silver_wf.add_dependency(glue_scripts_stack)
+silver_to_dynamo_wf = SilverToDynamoEventsWorkflowStack(
+    scope=app,
+    construct_id=f"{app_config.project_name}-slv-to-dynamo-wf",
+    props=SilverToDynamoEventsWorkflowStackProps(
+        silver_bucket=dl_stack.silver_bucket,
+        scripts_bucket=glue_scripts_stack.scripts_bucket,
+        notification_email=env_config.email,
+    ),
+)
+silver_to_dynamo_wf.add_dependency(dl_stack)
+silver_to_dynamo_wf.add_dependency(glue_scripts_stack)
 
 # orchestrator_stack = RssPipelineOrchestratorStack(
 #     scope=app,
