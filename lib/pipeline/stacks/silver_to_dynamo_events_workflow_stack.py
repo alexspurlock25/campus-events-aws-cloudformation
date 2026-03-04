@@ -5,29 +5,33 @@ CDK stack defining the DynamoDB-backed ingestion workflow.
 from dataclasses import dataclass
 
 from aws_cdk import (
-    Aws,
+    Duration,
     RemovalPolicy,
     Stack,
     aws_dynamodb,
     aws_glue,
     aws_iam,
+    aws_sns,
+    aws_sns_subscriptions,
 )
-from aws_cdk import aws_events as events
-from aws_cdk import aws_events_targets as targets
+from aws_cdk import aws_stepfunctions as sf
+from aws_cdk import aws_stepfunctions_tasks as sf_tasks
 from aws_cdk.aws_s3 import IBucket
 
 
 @dataclass
 class SilverToDynamoEventsWorkflowStackProps:
-    bronze_bucket: IBucket
     silver_bucket: IBucket
     scripts_bucket: IBucket
+    notification_email: str
 
 
 class SilverToDynamoEventsWorkflowStack(Stack):
     """
     CDK stack that materializes Silver-layer event data into DynamoDB.
     """
+
+    state_machine: sf.StateMachine
 
     def __init__(
         self,
@@ -39,8 +43,38 @@ class SilverToDynamoEventsWorkflowStack(Stack):
         super().__init__(
             scope,
             construct_id,
-            stack_name="CampusEventsDynamoEventsWorkflow",
+            stack_name="UCEventsDynamoEventsWfStack",
             **kwargs,
+        )
+
+        pipeline_failure_topic = aws_sns.Topic(
+            self,
+            "WorkflowFailureTopic",
+            display_name="UC Events Silver to DynamoDB Failures",
+            topic_name=f"{construct_id}-failures",
+        )
+
+        pipeline_failure_topic.add_subscription(
+            aws_sns_subscriptions.EmailSubscription(props.notification_email)
+        )
+
+        pipeline_success_topic = aws_sns.Topic(
+            self,
+            "WorkflowSuccessTopic",
+            display_name="UC Events Silver to DynamoDB Success",
+            topic_name=f"{construct_id}-success",
+        )
+
+        pipeline_success_topic.add_subscription(
+            aws_sns_subscriptions.EmailSubscription(props.notification_email)
+        )
+
+        notify_success = sf_tasks.SnsPublish(
+            scope=self,
+            id="NotifySuccess",
+            topic=pipeline_success_topic,
+            subject="✅ UC Events Data Pipeline - Silver to DynamoDB Workflow Processing Complete",
+            message=sf.TaskInput.from_json_path_at("$"),
         )
 
         glue_role = aws_iam.Role(
@@ -58,13 +92,13 @@ class SilverToDynamoEventsWorkflowStack(Stack):
         props.scripts_bucket.grant_read(glue_role)
         props.silver_bucket.grant_read_write(glue_role)
 
-        dynamo_events_table_name = f"{construct_id}-events-table"
+        dynamo_events_table_name = "uc-events-events-table"
         events_table = aws_dynamodb.Table(
             scope=self,
             id="CampusEventsEventsTable",
             table_name=dynamo_events_table_name,
             partition_key=aws_dynamodb.Attribute(
-                name="event_id", type=aws_dynamodb.AttributeType.STRING
+                name="event_id", type=aws_dynamodb.AttributeType.NUMBER
             ),
             billing_mode=aws_dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
@@ -84,7 +118,7 @@ class SilverToDynamoEventsWorkflowStack(Stack):
         events_table.grant_read_write_data(glue_role)
 
         glue_job_name = f"{construct_id}-job"
-        job = aws_glue.CfnJob(
+        aws_glue.CfnJob(
             scope=self,
             id="SilverToDynamoEventsJob",
             name=glue_job_name,
@@ -94,51 +128,51 @@ class SilverToDynamoEventsWorkflowStack(Stack):
             number_of_workers=2,
             timeout=5,
             max_retries=0,
+            execution_property=aws_glue.CfnJob.ExecutionPropertyProperty(
+                max_concurrent_runs=5
+            ),
             command=aws_glue.CfnJob.JobCommandProperty(
                 name="glueetl",
                 script_location=f"s3://{props.scripts_bucket.bucket_name}/glue/silver_to_dynamo_events.py",
             ),
             default_arguments={
-                "--continuous-log-logGroup": f"/aws-glue/jobs/{glue_job_name}",
-                "--enable-continuous-cloudwatch-log": "true",
-                "--TempDir": f"s3://{props.bronze_bucket.bucket_name}/silver_to_dynamo_events/",
-                "--enable-spark-ui": "true",
-                "--enable-metrics": "true",
-                "--SILVER_BUCKET": props.silver_bucket.bucket_name,
+                "--extra-py-files": f"s3://{props.scripts_bucket.bucket_name}/uc_types.py",
+                "--SILVER_BUCKET_NAME": props.silver_bucket.bucket_name,
                 "--DYNAMO_TABLE": dynamo_events_table_name,
             },
         )
 
-        # Create EventBridge rule
-        rule = events.Rule(
+        glue_task = sf_tasks.GlueStartJobRun(
             scope=self,
-            id="LoadEventsOnSilverArrivalRule",
-            rule_name=f"{construct_id}-on-silver-arrival",
-            event_pattern=events.EventPattern(
-                source=["aws.s3"],
-                detail_type=["Object Created"],
-                detail={
-                    "bucket": {"name": [props.silver_bucket.bucket_name]},
-                    "object": {
-                        "key": [
-                            {"prefix": "year="},
-                            {"suffix": ".parquet"},
-                        ]
-                    },
-                },
-            ),
+            id="SilverToDynamoDbRunJob",
+            glue_job_name=glue_job_name,
+            integration_pattern=sf.IntegrationPattern.RUN_JOB,
+            timeout=Duration.minutes(10),
         )
 
-        rule.add_target(
-            targets.AwsApi(
-                service="Glue",
-                action="startJobRun",
-                parameters={"JobName": job.ref},
-                policy_statement=aws_iam.PolicyStatement(
-                    actions=["glue:StartJobRun"],
-                    resources=[
-                        f"arn:aws:glue:{Aws.REGION}:{Aws.ACCOUNT_ID}:job/{glue_job_name}"
-                    ],
-                ),
-            )
+        fail_state = sf.Fail(
+            scope=self,
+            id="InsertIntoDynamoDbFailed",
+            cause="Glue job failed",
+            error="GlueJobError",
+        )
+
+        definition = glue_task.add_catch(
+            sf_tasks.SnsPublish(
+                scope=self,
+                id="NotifyDynamoGlueJobFailure",
+                topic=pipeline_failure_topic,
+                subject="🚨 UC Events Data Pipeline - Failed to insert into DynamoDB",
+                message=sf.TaskInput.from_json_path_at("$.error"),
+            ).next(fail_state),
+            errors=["States.ALL"],
+            result_path="$.error",
+        ).next(notify_success)
+
+        self.state_machine = sf.StateMachine(
+            scope=self,
+            id="SilverToDynamoDbStateMachine",
+            state_machine_name=f"{construct_id}-state-machine",
+            definition_body=sf.DefinitionBody.from_chainable(definition),
+            timeout=Duration.minutes(5),
         )

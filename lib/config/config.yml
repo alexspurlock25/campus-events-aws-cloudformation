@@ -1,0 +1,3 @@
+url: "https://campuslink.uc.edu/events.rss"
+schedule_expression: "rate(1 day)"
+email: "alexanderspurlock@gmail.com"

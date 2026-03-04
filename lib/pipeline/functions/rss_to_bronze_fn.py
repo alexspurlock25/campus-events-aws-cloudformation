@@ -1,5 +1,5 @@
 """
-Lambda hanlder to convert rss data to csv
+Lambda function to fetch new rss data.
 """
 
 import json
@@ -19,7 +19,6 @@ def handler(event, context):
     """
 
     rss_url = os.environ["RSS_FEED_URL"]
-    rss_feed_name = os.environ["RSS_FEED_NAME"]
     bucket_name = os.environ["BRONZE_BUCKET_NAME"]
 
     try:
@@ -27,7 +26,7 @@ def handler(event, context):
         content = rss_response.read()
 
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        s3_key = f"{rss_feed_name}/events_{timestamp}.xml"
+        s3_key = f"new/events_{timestamp}.xml"
 
         s3_client.put_object(
             Bucket=bucket_name, Key=s3_key, Body=content, ContentType="application/xml"
@@ -39,6 +38,7 @@ def handler(event, context):
             "statusCode": 200,
             "body": json.dumps(
                 {
+                    "status": "success",
                     "message": "RSS feed processed successfully",
                     "s3_location": f"s3://{bucket_name}/{s3_key}",
                     "content_size": len(content),

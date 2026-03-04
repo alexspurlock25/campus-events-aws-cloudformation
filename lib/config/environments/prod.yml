@@ -1,4 +1,0 @@
-rss_feed:
-  name: "university-of-cincinnati"
-  url: "https://campuslink.uc.edu/events.rss"
-  schedule_expression: "rate(1 day)"
