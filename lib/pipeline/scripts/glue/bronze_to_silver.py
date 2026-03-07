@@ -3,17 +3,16 @@ import re
 import sys
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Any, Dict, List, Optional
 
 import boto3
 import feedparser
-import pandas as pd
-from awsglue.context import GlueContext
+from feedparser import FeedParserDict
+from awsglue.context import DataFrame, GlueContext
 from awsglue.job import Job
 from awsglue.utils import getResolvedOptions
 from bs4 import BeautifulSoup
-from feedparser import FeedParserDict
 from pyspark.context import SparkContext
 from pyspark.sql import Row, Window
 from pyspark.sql import functions as F
@@ -109,8 +108,6 @@ def parse_rss(xml_byte_content: str) -> List[Event]:
     events: List[Event] = []
     feed = feedparser.parse(xml_byte_content)
 
-    target_date_format = "%Y-%m-%d"
-
     for entry in feed.entries:
         title = str(entry["title"]).strip()
         event_id = get_digits_from_guid(guid=str(entry["guid"]).strip())
@@ -121,6 +118,7 @@ def parse_rss(xml_byte_content: str) -> List[Event]:
         link = get_field(entry, "link")
 
         start_date_match = re.search(date_pattern, str(entry["start"]))
+        start_date: Optional[date] = None
         if start_date_match:
             start_date = datetime.strptime(start_date_match.group(0), "%d %b %Y").date()
         else:
@@ -128,16 +126,18 @@ def parse_rss(xml_byte_content: str) -> List[Event]:
             raise ValueError(f"Start date was missing for event: {event_id}.")
 
         end_date_match = re.search(date_pattern, str(entry["end"]))
+        end_date: Optional[date] = None
         if end_date_match:
             end_date = datetime.strptime(end_date_match.group(0), "%d %b %Y").date()
 
         start_time_match = re.search(time_pattern, str(entry["start"]))
-        start_time = ""
+        start_time: Optional[str] = None
+        end_time: Optional[str] = None
+        
         if start_time_match is not None:
             start_time = start_time_match.group(0)
 
         end_time_match = re.search(time_pattern, str(entry["end"]))
-        end_time = ""
         if end_time_match is not None:
             end_time = end_time_match.group(0)
 
@@ -162,7 +162,7 @@ def parse_rss(xml_byte_content: str) -> List[Event]:
     return events
 
 
-def events_to_dataframe(events: list[Event], s3_key: str) -> pd.DataFrame:
+def events_to_dataframe(events: list[Event], s3_key: str) -> DataFrame:
     """
     key example: new/events_20251210_063602.xml
     """
