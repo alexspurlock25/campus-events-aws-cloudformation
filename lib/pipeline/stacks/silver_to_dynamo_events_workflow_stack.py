@@ -32,6 +32,7 @@ class SilverToDynamoEventsWorkflowStack(Stack):
     """
 
     state_machine: sf.StateMachine
+    events_table: aws_dynamodb.Table
 
     def __init__(
         self,
@@ -93,7 +94,7 @@ class SilverToDynamoEventsWorkflowStack(Stack):
         props.silver_bucket.grant_read_write(glue_role)
 
         dynamo_events_table_name = "uc-events-events-table"
-        events_table = aws_dynamodb.Table(
+        self.events_table = aws_dynamodb.Table(
             scope=self,
             id="CampusEventsEventsTable",
             table_name=dynamo_events_table_name,
@@ -105,7 +106,7 @@ class SilverToDynamoEventsWorkflowStack(Stack):
             point_in_time_recovery=False,
         )
 
-        events_table.add_global_secondary_index(
+        self.events_table.add_global_secondary_index(
             index_name="DateIndex",
             partition_key=aws_dynamodb.Attribute(
                 name="start_date", type=aws_dynamodb.AttributeType.STRING
@@ -115,7 +116,7 @@ class SilverToDynamoEventsWorkflowStack(Stack):
             ),
         )
 
-        events_table.grant_read_write_data(glue_role)
+        self.events_table.grant_read_write_data(glue_role)
 
         glue_job_name = f"{construct_id}-job"
         aws_glue.CfnJob(
