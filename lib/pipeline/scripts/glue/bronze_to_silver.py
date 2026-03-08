@@ -133,7 +133,7 @@ def parse_rss(xml_byte_content: str) -> List[Event]:
         start_time_match = re.search(time_pattern, str(entry["start"]))
         start_time: Optional[str] = None
         end_time: Optional[str] = None
-        
+
         if start_time_match is not None:
             start_time = start_time_match.group(0)
 
