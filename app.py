@@ -6,6 +6,8 @@ from lib.config import load_environment_config, load_projecttoml_config
 from lib.infrastructure import (
     DataLakeStack,
     ScriptsResourcesStack,
+    ApiStack,
+    ApiStackProps,
 )
 from lib.pipeline.stacks import (
     BronzeToSilverWorkflowStack,
@@ -67,5 +69,14 @@ orchestrator_stack = RssPipelineOrchestratorStack(
 orchestrator_stack.add_dependency(dl_stack)
 orchestrator_stack.add_dependency(bronze_to_silver_wf)
 orchestrator_stack.add_dependency(silver_to_dynamo_wf)
+
+api_stack = ApiStack(
+    scope=app,
+    id=f"{app_config.project_name}-api",
+    props=ApiStackProps(
+        dynamodb_table=silver_to_dynamo_wf.events_table,
+    ),
+)
+api_stack.add_dependency(orchestrator_stack)
 
 app.synth()

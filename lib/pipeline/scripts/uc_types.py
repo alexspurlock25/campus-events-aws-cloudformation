@@ -13,14 +13,14 @@ from pyspark.sql.types import DateType, IntegerType, StringType, StructField, St
 class Event:
     event_id: int
     title: str
-    host: Optional[str] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-    event_description: Optional[str] = None
-    location: Optional[str] = None
-    external_link: Optional[str] = None
+    host: Optional[str]
+    start_date: Optional[date]
+    end_date: Optional[date]
+    start_time: Optional[str]
+    end_time: Optional[str]
+    event_description: Optional[str]
+    location: Optional[str]
+    external_link: Optional[str]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
