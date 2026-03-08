@@ -15,6 +15,7 @@ dependencies = [
     "feedparser (>=6.0.12,<7.0.0)",
     "pyyaml (>=6.0.3,<7.0.0)",
     "boto3 (>=1.41.5,<2.0.0)",
+    "boto3-stubs[full] (>=1.42.63,<2.0.0)",
 ]
 
 [dependency-groups]
